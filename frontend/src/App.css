@@ -1,0 +1,448 @@
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+.registration-page {
+  position: relative;
+
+  min-height: 100vh;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 150px 24px 40px;
+
+  background:
+          radial-gradient(
+                  circle at top left,
+                  rgba(14, 165, 233, 0.15),
+                  transparent 35%
+          ),
+          linear-gradient(
+                  135deg,
+                  #eff6ff 0%,
+                  #dbeafe 50%,
+                  #e0f2fe 100%
+          );
+
+  color: #164e63;
+}
+
+.selection-card,
+.form-card {
+  width: 100%;
+
+  background-color: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(15, 116, 144, 0.14);
+  border-radius: 24px;
+
+  box-shadow: 0 20px 50px rgba(15, 80, 110, 0.12);
+
+  backdrop-filter: blur(12px);
+}
+
+.selection-card {
+  max-width: 650px;
+  padding: 56px;
+
+  text-align: center;
+}
+
+.home-card {
+  max-width: 820px;
+  padding: 68px 56px;
+}
+
+.home-card h1 {
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.home-actions {
+  margin-top: 40px;
+}
+
+.home-actions .registration-button,
+.home-actions .registration-button:last-child {
+  background-color: #0f7490;
+  color: white;
+}
+
+.form-card {
+  max-width: 850px;
+  padding: 44px;
+}
+
+.page-label {
+  display: inline-block;
+
+  margin-bottom: 12px;
+
+  color: #0f7490;
+
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.registration-page h1 {
+  margin: 0 0 12px;
+
+  color: #134e4a;
+
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+
+.registration-page p {
+  margin: 0;
+
+  color: #52747f;
+
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.registration-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+
+  margin-top: 36px;
+}
+
+.registration-button {
+  min-width: 200px;
+  padding: 18px 32px;
+
+  border: 2px solid #0f7490;
+  border-radius: 14px;
+
+  background-color: #0f7490;
+  color: white;
+
+  font-size: 18px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  box-shadow: 0 6px 16px rgba(15, 116, 144, 0.22);
+
+  transition:
+          background-color 0.2s,
+          color 0.2s,
+          transform 0.2s,
+          box-shadow 0.2s;
+}
+
+.registration-button:last-child {
+  background-color: rgba(255, 255, 255, 0.65);
+  color: #0f7490;
+}
+
+.registration-button:hover {
+  background-color: #0c6078;
+  color: white;
+
+  transform: translateY(-2px);
+
+  box-shadow: 0 9px 20px rgba(15, 116, 144, 0.3);
+}
+
+.back-button {
+  position: absolute;
+  top: 88px;
+  left: 32px;
+
+  padding: 10px 16px;
+
+  border: 1px solid rgba(15, 116, 144, 0.35);
+  border-radius: 10px;
+
+  background-color: rgba(255, 255, 255, 0.75);
+  color: #0f7490;
+
+  font-size: 15px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+          background-color 0.2s,
+          transform 0.2s;
+}
+
+.back-button:hover {
+  background-color: white;
+  transform: translateX(-2px);
+}
+
+.form-header {
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.registration-form {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 22px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  color: #244f5e;
+
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.form-field input {
+  width: 100%;
+  padding: 14px 16px;
+
+  border: 1px solid #b6d2dc;
+  border-radius: 11px;
+  outline: none;
+
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #163c49;
+
+  font-size: 16px;
+
+  transition:
+          border-color 0.2s,
+          box-shadow 0.2s,
+          background-color 0.2s;
+}
+
+.form-field input:focus {
+  border-color: #0f7490;
+
+  background-color: white;
+
+  box-shadow: 0 0 0 4px rgba(15, 116, 144, 0.12);
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.submit-button {
+  width: 100%;
+  padding: 16px 24px;
+
+  border: none;
+  border-radius: 12px;
+
+  background-color: #0f7490;
+  color: white;
+
+  font-size: 17px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  box-shadow: 0 7px 18px rgba(15, 116, 144, 0.24);
+
+  transition:
+          background-color 0.2s,
+          transform 0.2s,
+          box-shadow 0.2s;
+}
+
+.submit-button:hover:not(:disabled) {
+  background-color: #0c6078;
+  transform: translateY(-1px);
+
+  box-shadow: 0 9px 22px rgba(15, 116, 144, 0.3);
+}
+
+.submit-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.form-message {
+  padding: 14px 16px;
+
+  border-radius: 10px;
+
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.form-message.success {
+  border: 1px solid #86d7b4;
+
+  background-color: #ecfdf5;
+  color: #047857;
+}
+
+.form-message.error {
+  border: 1px solid #f5aaaa;
+
+  background-color: #fef2f2;
+  color: #b91c1c;
+}
+
+@media (max-width: 700px) {
+  .selection-card,
+  .form-card {
+    padding: 32px 22px;
+  }
+
+  .home-card { padding: 44px 22px; }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .full-width {
+    grid-column: auto;
+  }
+
+  .registration-buttons {
+    width: 100%;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .registration-button {
+    width: 100%;
+  }
+
+  .registration-page h1 {
+    font-size: 34px;
+  }
+
+  .back-button {
+    top: 88px;
+    left: 20px;
+  }
+}
+
+.site-header {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  right: 24px;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-button,
+.text-button {
+  border: none;
+  background: transparent;
+  color: #0f7490;
+  cursor: pointer;
+  padding: 10px 4px;
+  font-weight: 700;
+}
+
+.brand-button {
+  font-size: 20px;
+  text-align: left;
+}
+
+.brand-button:hover,
+.text-button:hover {
+  color: #134e4a;
+  text-decoration: underline;
+}
+
+button:focus-visible {
+  outline: 3px solid #0f7490;
+  outline-offset: 4px;
+}
+
+.login-card { max-width: 520px; }
+.login-message { margin-bottom: 24px; }
+.login-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+.password-recovery-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 22px; }
+.form-message.info { background: #e0f2fe; border: 1px solid #b6d2dc; color: #164e63; }
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20px;
+}
+
+.header-actions .text-button { white-space: nowrap; }
+
+.provider-approval-page { max-width: 1050px; padding: 38px; }
+.provider-approval-page .form-header { margin-bottom: 26px; }
+.provider-approval-section h2 {
+  margin: 0 0 14px;
+  color: #134e4a;
+  font-size: 22px;
+}
+.reviewed-section { margin-top: 34px; }
+.provider-application-list { display: flex; flex-direction: column; gap: 12px; }
+.provider-application-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid #d6e7e9;
+  border-radius: 14px;
+  box-shadow: 0 5px 16px rgba(15, 80, 110, 0.08);
+}
+.provider-application-info { flex: 1; min-width: 0; }
+.provider-application-info h3 { margin: 0; color: #164e63; font-size: 18px; }
+.provider-kind { color: #0f7490; font-size: 13px; font-weight: 700; }
+.provider-application-info dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(130px, 1fr));
+  gap: 8px 18px;
+  margin: 12px 0 0;
+}
+.provider-application-info dl div { min-width: 0; }
+.provider-application-info dt { color: #52747f; font-size: 12px; }
+.provider-application-info dd { overflow-wrap: anywhere; margin: 2px 0 0; color: #163c49; font-size: 14px; }
+.provider-application-actions { display: flex; flex-direction: column; gap: 9px; min-width: 112px; }
+.provider-application-actions button {
+  padding: 10px 14px; border: 0; border-radius: 9px; color: #fff;
+  font-weight: 700; cursor: pointer;
+}
+.provider-application-actions button:disabled { opacity: .6; cursor: wait; }
+.provider-approve-button { background: #0f7490; }
+.provider-reject-button { background: #b54747; }
+.provider-application-status { min-width: 112px; text-align: center; font-weight: 700; }
+.provider-application-status.approved { color: #047857; }
+.provider-application-status.rejected { color: #b91c1c; }
+.provider-empty-state { padding: 16px; border-radius: 10px; background: rgba(255,255,255,.7); color: #52747f !important; font-size: 15px !important; }
+@media (max-width: 700px) {
+  .provider-approval-page { padding: 32px 18px; }
+  .provider-application-card { align-items: stretch; flex-direction: column; }
+  .provider-application-info dl { grid-template-columns: repeat(2, minmax(110px, 1fr)); }
+  .provider-application-actions { flex-direction: row; }
+  .provider-application-actions button { flex: 1; }
+}
+
+@media (max-width: 700px) {
+  .site-header { left: 16px; right: 16px; align-items: flex-start; }
+  .header-actions { flex-wrap: wrap; gap: 6px 12px; }
+  .brand-button { font-size: 17px; }
+}
