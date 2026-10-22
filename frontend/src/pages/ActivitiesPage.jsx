@@ -28,7 +28,7 @@ function happensOn(activity, dateText) {
 }
 const price = value => Number(value) === 0 ? "Gratis" : `$U ${new Intl.NumberFormat("es-UY", { maximumFractionDigits: 2 }).format(Number(value))}`;
 
-export default function ActivitiesPage({ onBack, currentUser, onLogin, onReserved, onEdit, onAddActivity, onExploreCategory, initialCategory = "", initialActivityId = null, mode = "explore" }) {
+export default function ActivitiesPage({ onBack, currentUser, onLogin, onReserved, onViewReservations, onEdit, onAddActivity, onExploreCategory, initialCategory = "", initialActivityId = null, mode = "explore" }) {
     const [activities, setActivities] = useState([]);
     const [favoriteIds, setFavoriteIds] = useState(new Set());
     const [search, setSearch] = useState("");
@@ -111,7 +111,7 @@ export default function ActivitiesPage({ onBack, currentUser, onLogin, onReserve
         onBack={() => setSelectedId(null)} onLogin={() => onLogin?.(selected.id)}
         onCategoryClick={name => { if (isMine) onExploreCategory?.(name); else { setCategory(name); setSelectedId(null); } }}
         onEdit={onEdit} onAddActivity={onAddActivity}
-        onReserved={message => { setNotice(message); setSelectedId(null); }} />;
+        onReserved={message => { setNotice(message); setSelectedId(null); }} onViewReservations={onViewReservations} />;
 
     return <main className="registration-page form-page activity-entry-page">
         <button className="back-button" type="button" onClick={onBack}>← Menú</button>

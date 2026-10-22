@@ -13,6 +13,10 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -92,9 +96,11 @@ public class AccountEmailService {
                 "campo-durazno.png");
     }
 
-    public void administratorCreated(String email, String username) {
+    public void administratorCreated(String email, String username, String assignedPassword) {
         send(email, "Tu cuenta de administrador está lista", "¡Hola " + username + "!\n\n"
-                + "Se creó una cuenta de administrador para vos en Uruguay Mnatural. Ya podés iniciar sesión con tu usuario o email y la contraseña que te asignaron.",
+                + "Se creó una cuenta de administrador para vos en Uruguay Mnatural.\n\n"
+                + "Usuario: " + username + "\nContraseña asignada: " + assignedPassword + "\n\n"
+                + "Ya podés iniciar sesión con tu usuario o email y la contraseña asignada.",
                 "calle-suspiros.png");
     }
 
@@ -103,5 +109,22 @@ public class AccountEmailService {
                 + "La actividad \"" + activityName + "\" se publicó correctamente en Uruguay Mnatural.\n\n"
                 + "Ya pueden encontrarla y reservarla desde la sección Explorar actividades.",
                 "bodega-jose-ignacio.png");
+    }
+
+    public void reservationConfirmed(String email, String contactName, String activityName,
+                                    String city, String location, LocalDateTime activityStart,
+                                    int participantCount, BigDecimal total) {
+        String date = activityStart.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM 'de' yyyy, HH:mm", new Locale("es", "UY")));
+        String price = total.signum() == 0 ? "Gratis" : "$U " + total.stripTrailingZeros().toPlainString();
+        send(email, "Tu reserva está confirmada · " + activityName,
+                "¡Hola " + contactName + "!\n\n"
+                        + "Tu reserva quedó confirmada.\n\n"
+                        + "Actividad: " + activityName + "\n"
+                        + "Fecha y hora: " + date + "\n"
+                        + "Lugar: " + location + ", " + city + "\n"
+                        + "Participantes: " + participantCount + "\n"
+                        + "Total: " + price + "\n\n"
+                        + "Te esperamos. Podés consultar esta reserva desde la sección Mis reservas.",
+                "casa-pueblo.png");
     }
 }

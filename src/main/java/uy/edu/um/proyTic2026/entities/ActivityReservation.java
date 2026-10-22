@@ -7,6 +7,8 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "activity_reservations", uniqueConstraints =
@@ -32,4 +34,26 @@ public class ActivityReservation {
 
     @Column(nullable = false)
     private Instant reservedAt = Instant.now();
+
+    @Column(nullable = false, columnDefinition = "integer default 1")
+    private Integer participantCount = 1;
+
+    @Column(length = 100)
+    private String contactName;
+
+    @Column(length = 100)
+    private String contactEmail;
+
+    @Column(length = 30)
+    private String contactPhone;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 24, columnDefinition = "varchar(24) default 'APPROVED'")
+    private ReservationPaymentStatus paymentStatus = ReservationPaymentStatus.APPROVED;
+
+    @Column(length = 64)
+    private String paymentOrderId;
+
+    @OneToMany(mappedBy = "reservation", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ReservationParticipant> participants = new ArrayList<>();
 }

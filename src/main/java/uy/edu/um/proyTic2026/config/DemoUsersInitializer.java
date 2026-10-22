@@ -11,6 +11,7 @@ import uy.edu.um.proyTic2026.entities.CompanyProvider;
 import uy.edu.um.proyTic2026.entities.IndividualProvider;
 import uy.edu.um.proyTic2026.entities.ProviderStatus;
 import uy.edu.um.proyTic2026.entities.Tourist;
+import uy.edu.um.proyTic2026.entities.DocumentType;
 import uy.edu.um.proyTic2026.repositories.IndividualProviderRepository;
 import uy.edu.um.proyTic2026.repositories.CompanyProviderRepository;
 import uy.edu.um.proyTic2026.repositories.TouristRepository;
@@ -29,6 +30,9 @@ public class DemoUsersInitializer implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         createTourist();
+        createDemoTourist("turista.demo2", "turista2.demo@uruguaymnatural.uy", "Lucía", "Silva", "55555556", 26);
+        createDemoTourist("turista.demo3", "turista3.demo@uruguaymnatural.uy", "Mateo", "Pereira", "55555557", 34);
+        createDemoTourist("turista.demo4", "turista4.demo@uruguaymnatural.uy", "Sofía", "Rodríguez", "55555558", 29);
         createApprovedProvider();
         createAdministrator();
         createApprovalExamples();
@@ -41,10 +45,25 @@ public class DemoUsersInitializer implements ApplicationRunner {
         tourist.setUsername("turista.demo");
         tourist.setEmail("turista.demo@uruguaymnatural.uy");
         tourist.setPassword(passwordEncoder.encode("Turista2026!"));
+        tourist.setDocumentType(DocumentType.CI);
         tourist.setFirstName("Turista");
         tourist.setLastName("Demo");
         tourist.setCi("55555555");
         tourist.setAge(30);
+        touristRepository.save(tourist);
+    }
+
+    private void createDemoTourist(String username, String email, String firstName, String lastName, String ci, int age) {
+        if (userRepository.existsByUsername(username)) return;
+        Tourist tourist = new Tourist();
+        tourist.setUsername(username);
+        tourist.setEmail(email);
+        tourist.setPassword(passwordEncoder.encode("Turista2026!"));
+        tourist.setDocumentType(DocumentType.CI);
+        tourist.setFirstName(firstName);
+        tourist.setLastName(lastName);
+        tourist.setCi(ci);
+        tourist.setAge(age);
         touristRepository.save(tourist);
     }
 

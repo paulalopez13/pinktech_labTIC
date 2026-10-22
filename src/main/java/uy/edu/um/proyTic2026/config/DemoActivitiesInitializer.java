@@ -20,16 +20,17 @@ public class DemoActivitiesInitializer {
     private final ActivityRepository activityRepository;
     private final ActivityCategoryRepository categoryRepository;
     private final UserRepository userRepository;
+    private final ActivityReservationRepository reservationRepository;
     private final ResourceLoader resourceLoader;
 
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void seedActivities() {
-        IndividualProvider provider = userRepository.findByUsernameIgnoreCaseOrEmailIgnoreCase(
-                        "prestador.demo", "prestador.demo")
-                .filter(IndividualProvider.class::isInstance).map(IndividualProvider.class::cast)
-                .filter(item -> item.getStatus() == ProviderStatus.APPROVED).orElse(null);
-        if (provider == null) return;
+        List<Provider> providers = List.of("prestador.demo", "demo.aceptado1", "demo.aceptado2", "demo.aceptado3").stream()
+                .map(username -> userRepository.findByUsernameIgnoreCaseOrEmailIgnoreCase(username, username).orElse(null))
+                .filter(Provider.class::isInstance).map(Provider.class::cast)
+                .filter(item -> item.getStatus() == ProviderStatus.APPROVED).toList();
+        if (providers.size() < 4) return;
         List<ActivityCategory> categories = categoryRepository.findAllByOrderByNameAsc();
         if (categories.isEmpty()) return;
         Map<String, ActivityCategory> byName = new HashMap<>();
@@ -37,29 +38,47 @@ public class DemoActivitiesInitializer {
         LocalDate today = LocalDate.now();
         List<DemoActivity> demos = List.of(
                 new DemoActivity("Atardecer en Casa Pueblo", "Maldonado", "Punta Ballena", "Casapueblo, Punta Ballena",
-                        "Recorré las terrazas de Casapueblo y disfrutá el atardecer sobre el Río de la Plata.", "Cultural", "casa-pueblo.png", 850, 14, 90, 0, null, "Fácil", "Calzado cómodo", ActivityRecurrence.DAILY, 2, 2, 24),
+                        "Recorré las terrazas de Casapueblo y disfrutá el atardecer sobre el Río de la Plata.", "Cultural", "casa-pueblo.png", 850, 14, 90, 0, null, "Principiante", "Calzado cómodo", ActivityRecurrence.DAILY, 2, 2, 24),
                 new DemoActivity("Paseo histórico por Calle de los Suspiros", "Colonia", "Colonia del Sacramento", "Barrio Histórico",
-                        "Caminata guiada por calles empedradas, arquitectura colonial y relatos de la antigua Colonia.", "Historia", "calle-suspiros.png", 620, 12, 100, 0, null, "Fácil", "Ninguno", ActivityRecurrence.WEEKLY, 3, 3, 12),
+                        "Caminata guiada por calles empedradas, arquitectura colonial y relatos de la antigua Colonia.", "Historia", "calle-suspiros.png", 0, 12, 100, 0, null, "Principiante", "Ninguno", ActivityRecurrence.WEEKLY, 3, 3, 12),
                 new DemoActivity("Sabores de bodega en José Ignacio", "Maldonado", "José Ignacio", "Camino Eugenio Sainz Martínez",
-                        "Visita a una bodega local con recorrido entre viñedos y degustación de etiquetas de la casa.", "Gastronomía", "bodega-jose-ignacio.png", 1800, 10, 120, 18, null, "Fácil", "Documento de identidad", ActivityRecurrence.WEEKLY, 4, 4, 24),
+                        "Visita a una bodega local con recorrido entre viñedos y degustación de etiquetas de la casa.", "Gastronomía", "bodega-jose-ignacio.png", 1800, 10, 120, 18, null, "Principiante", "Documento de identidad", ActivityRecurrence.WEEKLY, 4, 4, 24),
                 new DemoActivity("Faro y costa de José Ignacio", "Maldonado", "José Ignacio", "Faro de José Ignacio",
-                        "Paseo costero para conocer el faro, la historia del pueblo y sus playas abiertas al océano.", "Tranquilo", "faro-jose-ignacio.png", 500, 16, 75, 0, null, "Fácil", "Protector solar", ActivityRecurrence.DAILY, 5, 5, 4),
+                        "Paseo costero para conocer el faro, la historia del pueblo y sus playas abiertas al océano.", "Tranquilo", "faro-jose-ignacio.png", 0, 16, 75, 0, null, "Principiante", "Protector solar", ActivityRecurrence.DAILY, 5, 5, 4),
                 new DemoActivity("Cabalgata entre campos de Durazno", "Durazno", "Durazno", "Establecimiento rural, Durazno",
-                        "Salida a caballo por caminos rurales y praderas, acompañada por guías del establecimiento.", "Naturaleza", "campo-durazno.png", 1450, 8, 120, 12, 140, "Inicial", "Pantalón largo y calzado cerrado", ActivityRecurrence.WEEKLY, 6, 6, 24),
+                        "Salida a caballo por caminos rurales y praderas, acompañada por guías del establecimiento.", "Naturaleza", "campo-durazno.png", 1450, 8, 120, 12, 140, "Principiante", "Pantalón largo y calzado cerrado", ActivityRecurrence.WEEKLY, 6, 6, 24),
                 new DemoActivity("Ascenso guiado al Cerro Pan de Azúcar", "Maldonado", "Piriápolis", "Reserva de Fauna y Cerro Pan de Azúcar",
                         "Subida guiada por el sendero del cerro con pausas para descansar y disfrutar las vistas de la zona.", "Aventura", "cerro-pan-azucar.png", 900, 10, 210, 12, 0, "Intermedio", "Agua, gorro y calzado de trekking", ActivityRecurrence.BIWEEKLY, 7, 7, 24),
                 new DemoActivity("Caminata por Pozos Azules", "Maldonado", "Pan de Azúcar", "Senderos de Pozos Azules",
                         "Explorá el arroyo y sus pozas de agua clara en un recorrido acompañado por senderos naturales.", "Naturaleza", "pozos-azules.png", 1100, 10, 180, 10, 0, "Intermedio", "Ropa cómoda y muda de ropa", ActivityRecurrence.SEASONAL, 8, 8, 24),
                 new DemoActivity("Atardecer entre los médanos de Valizas", "Rocha", "Barra de Valizas", "Médanos de Valizas",
-                        "Caminata por la arena hasta los médanos para ver caer el sol sobre la costa de Rocha.", "Familiar", "medano-valizas.png", 700, 15, 100, 0, null, "Fácil", "Agua y protección solar", ActivityRecurrence.DAILY, 9, 9, 6),
+                        "Caminata por la arena hasta los médanos para ver caer el sol sobre la costa de Rocha.", "Familiar", "medano-valizas.png", 700, 15, 100, 0, null, "Principiante", "Agua y protección solar", ActivityRecurrence.DAILY, 9, 9, 6),
                 new DemoActivity("Paseo en barco a Isla Gorriti", "Maldonado", "Punta del Este", "Puerto de Punta del Este",
-                        "Navegación corta hasta Isla Gorriti para recorrer sus playas y senderos con tiempo libre.", "Familiar", "isla-gorriti.png", 1250, 18, 180, 0, null, "Fácil", "Ropa cómoda y protector solar", ActivityRecurrence.WEEKLY, 10, 10, 12),
+                        "Navegación corta hasta Isla Gorriti para recorrer sus playas y senderos con tiempo libre.", "Familiar", "isla-gorriti.png", 1250, 18, 180, 0, null, "Principiante", "Ropa cómoda y protector solar", ActivityRecurrence.WEEKLY, 10, 10, 12),
                 new DemoActivity("Avistamiento responsable de ballenas", "Maldonado", "Punta del Este", "Puerto de Punta del Este",
-                        "Salida embarcada de observación durante la temporada, con guía y recomendaciones para cuidar la fauna.", "Naturaleza", "ballena-punta-del-este.png", 2200, 10, 150, 0, null, "Fácil", "Abrigo liviano y protección solar", ActivityRecurrence.SEASONAL, 11, 11, 24)
+                        "Salida embarcada de observación durante la temporada, con guía y recomendaciones para cuidar la fauna.", "Naturaleza", "ballena-punta-del-este.png", 2200, 10, 150, 0, null, "Principiante", "Abrigo liviano y protección solar", ActivityRecurrence.SEASONAL, 11, 11, 24)
         );
-        for (DemoActivity demo : demos) {
-            if (activityRepository.existsByNameIgnoreCase(demo.name())) continue;
-            Activity activity = new Activity();
+        Map<String, Activity> seeded = new HashMap<>();
+        List<Activity> existingActivities = activityRepository.findAll();
+        for (int index = 0; index < demos.size(); index++) {
+            DemoActivity demo = demos.get(index);
+            Provider provider = providers.get(index % providers.size());
+            Activity activity = existingActivities.stream().filter(item -> item.getName().equalsIgnoreCase(demo.name())).findFirst().orElse(null);
+            if (activity != null) {
+                activity.setProvider(provider);
+                activity.setPrice(BigDecimal.valueOf(demo.price()));
+                activity.setDifficulty(demo.difficulty());
+                if (nextStart(activity) == null) {
+                    activity.setFirstDate(today.plusDays(demo.daysFromToday()));
+                    activity.setRepeatUntil(demo.recurrence() == ActivityRecurrence.ONCE ? null : today.plusDays(demo.daysFromToday() + demo.durationDays()));
+                    activity.setWeekdays(demo.recurrence() == ActivityRecurrence.WEEKLY || demo.recurrence() == ActivityRecurrence.BIWEEKLY || demo.recurrence() == ActivityRecurrence.SEASONAL
+                            ? Set.of(activity.getFirstDate().getDayOfWeek()) : Set.of());
+                }
+                activityRepository.save(activity);
+                seeded.put(demo.name(), activity);
+                continue;
+            }
+            activity = new Activity();
             activity.setProvider(provider);
             activity.setName(demo.name()); activity.setDepartment(demo.department()); activity.setCity(demo.city());
             activity.setLocation(demo.location()); activity.setDescription(demo.description());
@@ -76,8 +95,76 @@ public class DemoActivitiesInitializer {
             activity.setMinimumHeightCm(demo.minimumHeightCm()); activity.setDifficulty(demo.difficulty());
             activity.setEquipment(demo.equipment());
             attachPhoto(activity, demo.photo());
-            activityRepository.save(activity);
+            seeded.put(demo.name(), activityRepository.save(activity));
         }
+        seedReservations(new ArrayList<>(seeded.values()));
+    }
+
+    private void seedReservations(List<Activity> activities) {
+        List<Tourist> tourists = List.of("turista.demo", "turista.demo2", "turista.demo3", "turista.demo4").stream()
+                .map(username -> userRepository.findByUsernameIgnoreCaseOrEmailIgnoreCase(username, username).orElse(null))
+                .filter(Tourist.class::isInstance).map(Tourist.class::cast).toList();
+        if (tourists.size() < 4) return;
+        for (int index = 0; index < activities.size(); index++) {
+            Activity activity = activities.get(index);
+            Tourist tourist = tourists.get(index % tourists.size());
+            if (reservationRepository.existsByActivity_IdAndTourist_Id(activity.getId(), tourist.getId())) continue;
+            LocalDateTime start = nextStart(activity);
+            if (start == null) continue;
+            ActivityReservation reservation = new ActivityReservation();
+            reservation.setActivity(activity);
+            reservation.setTourist(tourist);
+            reservation.setActivityStart(start);
+            reservation.setParticipantCount(1);
+            reservation.setContactName(tourist.getFirstName() + " " + tourist.getLastName());
+            reservation.setContactEmail(tourist.getEmail());
+            reservation.setContactPhone("+59899000000");
+            reservation.setPaymentStatus(ReservationPaymentStatus.APPROVED);
+            reservation.setPaymentOrderId("DEMO-RESERVA-" + activity.getId() + "-" + tourist.getId());
+            ReservationParticipant participant = new ReservationParticipant();
+            participant.setReservation(reservation);
+            participant.setFullName(tourist.getFirstName() + " " + tourist.getLastName());
+            participant.setDocumentType(tourist.getDocumentType() == null ? DocumentType.CI : tourist.getDocumentType());
+            participant.setDocumentNumber(tourist.getCi());
+            participant.setAge(tourist.getAge());
+            participant.setHeightCm(175);
+            participant.setLevel("Avanzado");
+            reservation.getParticipants().add(participant);
+            reservationRepository.save(reservation);
+        }
+    }
+
+    private LocalDateTime nextStart(Activity activity) {
+        List<LocalTime> times = activity.getStartTimes();
+        if (times == null || times.isEmpty()) return null;
+        LocalDate today = LocalDate.now();
+        for (int offset = 0; offset < 370; offset++) {
+            LocalDate date = today.plusDays(offset);
+            if (date.isBefore(activity.getFirstDate()) || (activity.getRepeatUntil() != null && date.isAfter(activity.getRepeatUntil()))) continue;
+            if (!occursOn(activity, date)) continue;
+            for (LocalTime time : times) {
+                LocalDateTime candidate = LocalDateTime.of(date, time);
+                if (candidate.isAfter(LocalDateTime.now().plusHours(activity.getBookingCutoffHours()))) return candidate;
+            }
+        }
+        return null;
+    }
+
+    private boolean occursOn(Activity activity, LocalDate date) {
+        return switch (activity.getRecurrence()) {
+            case ONCE -> date.equals(activity.getFirstDate());
+            case DAILY -> true;
+            case WEEKLY -> selectedWeekday(activity, date);
+            case BIWEEKLY -> selectedWeekday(activity, date) &&
+                    java.time.temporal.ChronoUnit.WEEKS.between(activity.getFirstDate().with(DayOfWeek.MONDAY), date.with(DayOfWeek.MONDAY)) % 2 == 0;
+            case MONTHLY -> date.getDayOfMonth() == activity.getFirstDate().getDayOfMonth();
+            case SEASONAL -> selectedWeekday(activity, date);
+        };
+    }
+
+    private boolean selectedWeekday(Activity activity, LocalDate date) {
+        Set<DayOfWeek> days = activity.getWeekdays();
+        return (days.isEmpty() ? Set.of(activity.getFirstDate().getDayOfWeek()) : days).contains(date.getDayOfWeek());
     }
 
     private void attachPhoto(Activity activity, String fileName) {

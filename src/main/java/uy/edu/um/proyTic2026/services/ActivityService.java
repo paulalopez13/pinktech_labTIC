@@ -11,6 +11,7 @@ import uy.edu.um.proyTic2026.repositories.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.util.StringUtils;
 import java.io.IOException;
+import java.math.BigDecimal;
 
 import java.time.*;
 import java.time.temporal.ChronoUnit;
@@ -95,7 +96,7 @@ public class ActivityService {
         Activity activity = activityRepository.findById(activityId)
                 .orElseThrow(() -> new IllegalArgumentException("No se encontró la actividad."));
         if (!isOccurrence(activity, occurrence)) throw new IllegalArgumentException("Ese horario no pertenece a la actividad.");
-        return Math.max(0, activity.getCapacity() - (int) reservationRepository.countByActivity_IdAndActivityStart(activityId, occurrence));
+        return Math.max(0, activity.getCapacity() - (int) reservationRepository.countBookedParticipants(activityId, occurrence, Instant.now().minus(Duration.ofMinutes(15))));
     }
 
     @Transactional(readOnly = true)
@@ -174,13 +175,104 @@ public class ActivityService {
         if (reservationRepository.existsByActivity_IdAndTourist_IdAndActivityStart(activityId, touristId, occurrence)) {
             throw new IllegalArgumentException("Ya tenés una reserva para ese horario.");
         }
-        long reserved = reservationRepository.countByActivity_IdAndActivityStart(activityId, occurrence);
+        long reserved = reservationRepository.countBookedParticipants(activityId, occurrence, Instant.now().minus(Duration.ofMinutes(15)));
         if (reserved >= activity.getCapacity()) throw new IllegalArgumentException("No quedan cupos para ese horario.");
         ActivityReservation reservation = new ActivityReservation();
         reservation.setActivity(activity);
         reservation.setTourist(tourist);
         reservation.setActivityStart(occurrence);
-        return ReservationResponse.from(reservationRepository.save(reservation), false);
+        ActivityReservation saved = reservationRepository.save(reservation);
+        notifyReservationConfirmed(tourist.getEmail(), tourist.getFirstName() + " " + tourist.getLastName(), activity,
+                occurrence, 1, activity.getPrice());
+        return ReservationResponse.from(saved, false);
+    }
+
+    @Transactional
+    public ReservationResponse reserveSandbox(Long touristId, Long activityId, GroupReservationRequest request) {
+        Tourist tourist = userRepository.findById(touristId).filter(Tourist.class::isInstance)
+                .map(Tourist.class::cast).orElseThrow(() -> new IllegalArgumentException("Solo los turistas pueden reservar."));
+        Activity activity = activityRepository.findByIdForUpdate(activityId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró la actividad."));
+        LocalDateTime occurrence = request.activityStart();
+        if (!isOccurrence(activity, occurrence)) throw new IllegalArgumentException("Ese horario no pertenece a la actividad.");
+        if (!occurrence.isAfter(LocalDateTime.now())) throw new IllegalArgumentException("Ya no se puede reservar una fecha pasada.");
+        if (occurrence.minusHours(activity.getBookingCutoffHours()).isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("El plazo para reservar esta fecha ya cerró.");
+        }
+        if (reservationRepository.existsByActivity_IdAndTourist_IdAndActivityStart(activityId, touristId, occurrence)) {
+            throw new IllegalArgumentException("Ya tenés una reserva para ese horario.");
+        }
+        int count = request.participants().size();
+        long reserved = reservationRepository.countBookedParticipants(activityId, occurrence, Instant.now().minus(Duration.ofMinutes(15)));
+        if (reserved + count > activity.getCapacity()) throw new IllegalArgumentException("No quedan suficientes cupos para todas las personas.");
+        validateParticipants(activity, request.participants());
+
+        ActivityReservation reservation = new ActivityReservation();
+        reservation.setActivity(activity);
+        reservation.setTourist(tourist);
+        reservation.setActivityStart(occurrence);
+        reservation.setParticipantCount(count);
+        reservation.setContactName(request.contactName().trim());
+        reservation.setContactEmail(request.contactEmail().trim());
+        reservation.setContactPhone(request.contactPhone().trim());
+        reservation.setPaymentStatus(ReservationPaymentStatus.APPROVED);
+        reservation.setPaymentOrderId("SANDBOX-" + UUID.randomUUID());
+        for (ReservationParticipantRequest item : request.participants()) {
+            ReservationParticipant participant = new ReservationParticipant();
+            participant.setReservation(reservation);
+            participant.setFullName(item.fullName().trim());
+            participant.setDocumentType(item.documentType());
+            participant.setDocumentNumber(item.documentNumber().trim().toUpperCase(Locale.ROOT));
+            participant.setAge(item.age());
+            participant.setHeightCm(item.heightCm());
+            participant.setLevel(item.level() == null || item.level().isBlank() ? null : item.level());
+            reservation.getParticipants().add(participant);
+        }
+        ActivityReservation saved = reservationRepository.save(reservation);
+        BigDecimal total = activity.getPrice().multiply(BigDecimal.valueOf(count));
+        notifyReservationConfirmed(request.contactEmail().trim(), request.contactName().trim(), activity, occurrence, count, total);
+        return ReservationResponse.from(saved, false);
+    }
+
+    private void notifyReservationConfirmed(String email, String contactName, Activity activity,
+                                            LocalDateTime occurrence, int participantCount, BigDecimal total) {
+        String activityName = activity.getName();
+        String city = activity.getCity();
+        String location = activity.getLocation();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() {
+                accountEmailService.reservationConfirmed(email, contactName, activityName, city, location,
+                        occurrence, participantCount, total);
+            }
+        });
+    }
+
+    private void validateParticipants(Activity activity, List<ReservationParticipantRequest> participants) {
+        for (int index = 0; index < participants.size(); index++) {
+            ReservationParticipantRequest person = participants.get(index);
+            String who = "La persona " + (index + 1) + " ";
+            if ((person.documentType() == DocumentType.CI && !person.documentNumber().matches("\\d{8}"))
+                    || (person.documentType() == DocumentType.PASSPORT && !person.documentNumber().matches("[A-Za-z0-9]{6,9}")))
+                throw new IllegalArgumentException(who + "debe ingresar un documento válido.");
+            if (activity.getMinimumAge() != null && person.age() < activity.getMinimumAge())
+                throw new IllegalArgumentException(who + "no cumple la edad mínima de " + activity.getMinimumAge() + " años.");
+            if (activity.getMaximumAge() != null && person.age() > activity.getMaximumAge())
+                throw new IllegalArgumentException(who + "supera la edad máxima de " + activity.getMaximumAge() + " años.");
+            if (activity.getMinimumHeightCm() != null && activity.getMinimumHeightCm() > 0
+                    && (person.heightCm() == null || person.heightCm() < activity.getMinimumHeightCm()))
+                throw new IllegalArgumentException(who + "no cumple la altura mínima de " + activity.getMinimumHeightCm() + " cm.");
+            if (activity.getMaximumHeightCm() != null
+                    && (person.heightCm() == null || person.heightCm() > activity.getMaximumHeightCm()))
+                throw new IllegalArgumentException(who + "supera la altura máxima de " + activity.getMaximumHeightCm() + " cm.");
+            if (activity.getDifficulty() != null && !activity.getDifficulty().isBlank()) {
+                if (person.level() == null || level(person.level()) < level(activity.getDifficulty()))
+                    throw new IllegalArgumentException(who + "no tiene el nivel requerido (" + activity.getDifficulty() + ").");
+            }
+        }
+    }
+
+    private int level(String value) {
+        return switch (value) { case "Principiante" -> 1; case "Intermedio" -> 2; case "Avanzado" -> 3; default -> 0; };
     }
 
     @Transactional(readOnly = true)

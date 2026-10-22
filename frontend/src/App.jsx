@@ -16,6 +16,7 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import AdministratorRegistrationPage from "./pages/AdministratorRegistrationPage";
 import CategoryManagementPage from "./pages/CategoryManagementPage";
 import ActivityFormPage from "./pages/ActivityFormPage";
+import MyReservationsPage from "./pages/MyReservationsPage";
 import { getCurrentUser, logoutUser } from "./services/authService";
 import BrandLogo from "./components/BrandLogo";
 
@@ -152,10 +153,14 @@ function App() {
         page = <ActivitiesPage onBack={() => navigate(null)} currentUser={currentUser}
             onLogin={loginForActivity} initialActivityId={activityReturn.id} initialCategory={activityReturn.category}
             onReserved={message => setDashboardNotice(message)}
+            onViewReservations={() => navigate("reservations")}
             onAddActivity={() => navigate("addActivity")} />;
+    } else if (selectedType === "reservations" && currentUser?.role === "TOURIST") {
+        page = <MyReservationsPage onBack={() => navigate(null)} />;
     } else if (selectedType === "favorites" && currentUser?.role === "TOURIST") {
         page = <ActivitiesPage key={favoritesViewKey} mode="favorites" onBack={() => navigate(null)} currentUser={currentUser}
-            onLogin={loginForActivity} onReserved={message => setDashboardNotice(message)} />;
+            onLogin={loginForActivity} onReserved={message => setDashboardNotice(message)}
+            onViewReservations={() => navigate("reservations")} />;
     } else if (selectedType === "myActivities" && currentUser?.role === "PROVIDER" && currentUser?.providerStatus === "APPROVED") {
         page = <ActivitiesPage mode="mine" currentUser={currentUser} onBack={() => navigate(null)}
             onExploreCategory={exploreCategory}
@@ -163,7 +168,7 @@ function App() {
             onEdit={activity => { setActivityToEdit(activity); navigate("editActivity"); }} />;
     } else if (currentUser) {
         page = <AccountMenuPage user={currentUser} onExplore={() => navigate("activities")}
-            onReservations={() => setDashboardNotice("La opción para consultar tus reservas todavía no está disponible.")}
+            onReservations={() => navigate("reservations")}
             onMyActivities={() => navigate("myActivities")}
             onAddActivity={() => navigate("addActivity")}
             onApproveProviders={() => navigate("approveProviders")}

@@ -52,4 +52,5 @@ export const createActivity = (activity, photos) => multipartMutation("/activiti
 export const updateActivity = (id, activity, photos, keepPhotoIds) => multipartMutation(`/activities/${id}`, "PUT", activity, photos, keepPhotoIds);
 export const deleteActivity = id => mutation(`/activities/${id}`, "DELETE");
 export const reserveActivity = (id, activityStart) => mutation(`/reservations/activities/${id}`, "POST", { activityStart });
+export const reserveActivitySandbox = (id, reservation) => mutation(`/reservations/activities/${id}/sandbox-payment`, "POST", reservation);
 export const submitActivityReview = (reservationId, review) => mutation(`/reservations/${reservationId}/review`, "POST", review);

@@ -1,20 +1,21 @@
 import { useEffect, useState } from "react";
-import { reserveActivity, getActivityReviews, getActivityAvailability } from "../services/activityService";
+import { getActivityReviews, getActivityAvailability } from "../services/activityService";
+import ActivityReservationWizard from "../components/ActivityReservationWizard";
 
 const weekdayLabels = { MONDAY: "lunes", TUESDAY: "martes", WEDNESDAY: "miércoles", THURSDAY: "jueves", FRIDAY: "viernes", SATURDAY: "sábado", SUNDAY: "domingo" };
 const recurrenceLabels = { ONCE: "Una sola vez", DAILY: "Diariamente", WEEKLY: "Semanalmente", BIWEEKLY: "Cada 2 semanas", MONTHLY: "Mensualmente", SEASONAL: "Por temporada" };
-const dateTime = value => new Date(value).toLocaleString("es-UY", { dateStyle: "medium", timeStyle: "short" });
 const priceText = value => Number(value) === 0 ? "Gratis" : `$U ${new Intl.NumberFormat("es-UY", { maximumFractionDigits: 2 }).format(Number(value))}`;
 
-export default function ActivityDetailPage({ activity, currentUser, isOwner = false, favorite = false, onToggleFavorite, onProviderClick, onCategoryClick, onBack, onLogin, onReserved, onEdit, onAddActivity }) {
+export default function ActivityDetailPage({ activity, currentUser, isOwner = false, favorite = false, onToggleFavorite, onProviderClick, onCategoryClick, onBack, onLogin, onReserved, onViewReservations, onEdit, onAddActivity }) {
     const [photoIndex, setPhotoIndex] = useState(0);
     const [selectedTime, setSelectedTime] = useState(activity.upcomingOccurrences?.[0] || "");
     const [reviews, setReviews] = useState([]);
     const [error, setError] = useState("");
-    const [busy, setBusy] = useState(false);
     const [reviewsLoaded, setReviewsLoaded] = useState(false);
     const [availableSpots, setAvailableSpots] = useState(null);
     const [availabilityLoading, setAvailabilityLoading] = useState(false);
+    const [reservationOpen, setReservationOpen] = useState(false);
+    const [confirmedReservation, setConfirmedReservation] = useState(null);
     const photos = activity.photos || [];
     const selectedPhoto = photos[Math.min(photoIndex, Math.max(photos.length - 1, 0))];
     const selectedDays = (activity.weekdays || []).map(day => weekdayLabels[day]).filter(Boolean);
@@ -41,20 +42,36 @@ export default function ActivityDetailPage({ activity, currentUser, isOwner = fa
         return () => { active = false; };
     }, [activity.id, selectedTime]);
 
-    async function handleReserve() {
-        if (!selectedTime) return;
-        setBusy(true);
-        setError("");
-        try {
-            await reserveActivity(activity.id, selectedTime);
-            setAvailableSpots(value => value == null ? value : Math.max(0, value - 1));
-            onReserved?.("¡Listo! El cupo quedó reservado.");
-        } catch (reserveError) {
-            setError(reserveError.message);
-        } finally {
-            setBusy(false);
-        }
+    if (confirmedReservation) {
+        const reservation = confirmedReservation.reservation;
+        const start = new Date(reservation.activityStart);
+        return <main className="registration-page form-page activity-entry-page">
+            <section className="reservation-success-card form-card" role="status">
+                <div className="reservation-success-icon" aria-hidden="true">✓</div>
+                <p className="reservation-success-eyebrow">Uruguay Mnatural</p>
+                <h1>¡Reserva exitosa!</h1>
+                <p className="reservation-success-intro">Tu lugar quedó confirmado. Enviamos los datos de la reserva a <strong>{confirmedReservation.email}</strong>.</p>
+                <div className="reservation-summary reservation-success-summary">
+                    <p><span>Actividad</span><strong>{reservation.activityName}</strong></p>
+                    <p><span>Fecha</span><strong>{start.toLocaleDateString("es-UY", { dateStyle: "full" })}</strong></p>
+                    <p><span>Horario</span><strong>{start.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })}</strong></p>
+                    <p><span>Lugar</span><strong>{reservation.location}, {reservation.city}, {reservation.department}</strong></p>
+                    <p><span>Participantes</span><strong>{reservation.participantCount}</strong></p>
+                    <p><span>Correo de confirmación</span><strong>{confirmedReservation.email}</strong></p>
+                    <p className="total"><span>Total</span><strong>{priceText(confirmedReservation.total)}</strong></p>
+                </div>
+                <div className="reservation-success-actions">
+                    <button className="submit-button" type="button" onClick={onViewReservations}>Ver mis reservas</button>
+                    <button className="activity-step-back" type="button" onClick={onBack}>Volver a actividades</button>
+                </div>
+            </section>
+        </main>;
     }
+
+    if (reservationOpen) return <main className="registration-page form-page activity-entry-page">
+        <ActivityReservationWizard activity={activity} currentUser={currentUser}
+            onBack={() => setReservationOpen(false)} onReserved={(result, email) => setConfirmedReservation({ ...result, email })} />
+    </main>;
 
     return <main className="registration-page form-page activity-entry-page">
         <button className="back-button" type="button" onClick={onBack}>← Volver</button>
@@ -115,12 +132,7 @@ export default function ActivityDetailPage({ activity, currentUser, isOwner = fa
                 <button className="submit-button" type="button" onClick={() => onEdit?.(activity)}>Editar actividad</button>
                 <button className="activity-step-back" type="button" onClick={onAddActivity}>Agregar otra actividad</button>
             </div> : currentUser?.role === "TOURIST" && activity.upcomingOccurrences?.length > 0 ? <div className="activity-booking-row">
-                <label className="form-field">Elegí fecha y hora
-                    <select value={selectedTime} onChange={event => setSelectedTime(event.target.value)}>
-                        {activity.upcomingOccurrences.map(occurrence => <option key={occurrence} value={occurrence}>{dateTime(occurrence)}</option>)}
-                    </select>
-                </label>
-                <button className="submit-button" type="button" disabled={busy} onClick={handleReserve}>{busy ? "Reservando…" : "Reservar cupo"}</button>
+                <button className="submit-button" type="button" onClick={() => setReservationOpen(true)}>Reservar</button>
             </div> : null}
             {!isOwner && currentUser?.role === "TOURIST" && <button className={`activity-save-action ${favorite ? "active" : ""}`} type="button" onClick={onToggleFavorite}>
                 {favorite ? "♥ Guardada en favoritos" : "♡ Guardar actividad en favoritos"}</button>}
