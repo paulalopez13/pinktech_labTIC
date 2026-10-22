@@ -162,32 +162,6 @@ public class ActivityService {
     }
 
     @Transactional
-    public ReservationResponse reserve(Long touristId, Long activityId, LocalDateTime occurrence) {
-        Tourist tourist = userRepository.findById(touristId).filter(Tourist.class::isInstance)
-                .map(Tourist.class::cast).orElseThrow(() -> new IllegalArgumentException("Solo los turistas pueden reservar."));
-        Activity activity = activityRepository.findByIdForUpdate(activityId)
-                .orElseThrow(() -> new IllegalArgumentException("No se encontró la actividad."));
-        if (!isOccurrence(activity, occurrence)) throw new IllegalArgumentException("Ese horario no pertenece a la actividad.");
-        if (!occurrence.isAfter(LocalDateTime.now())) throw new IllegalArgumentException("Ya no se puede reservar una fecha pasada.");
-        if (occurrence.minusHours(activity.getBookingCutoffHours()).isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("El plazo para reservar esta fecha ya cerró.");
-        }
-        if (reservationRepository.existsByActivity_IdAndTourist_IdAndActivityStart(activityId, touristId, occurrence)) {
-            throw new IllegalArgumentException("Ya tenés una reserva para ese horario.");
-        }
-        long reserved = reservationRepository.countBookedParticipants(activityId, occurrence, Instant.now().minus(Duration.ofMinutes(15)));
-        if (reserved >= activity.getCapacity()) throw new IllegalArgumentException("No quedan cupos para ese horario.");
-        ActivityReservation reservation = new ActivityReservation();
-        reservation.setActivity(activity);
-        reservation.setTourist(tourist);
-        reservation.setActivityStart(occurrence);
-        ActivityReservation saved = reservationRepository.save(reservation);
-        notifyReservationConfirmed(tourist.getEmail(), tourist.getFirstName() + " " + tourist.getLastName(), activity,
-                occurrence, 1, activity.getPrice());
-        return ReservationResponse.from(saved, false);
-    }
-
-    @Transactional
     public ReservationResponse reserveSandbox(Long touristId, Long activityId, GroupReservationRequest request) {
         Tourist tourist = userRepository.findById(touristId).filter(Tourist.class::isInstance)
                 .map(Tourist.class::cast).orElseThrow(() -> new IllegalArgumentException("Solo los turistas pueden reservar."));
