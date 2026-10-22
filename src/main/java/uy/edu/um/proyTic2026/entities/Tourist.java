@@ -18,6 +18,10 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Tourist extends User {
 
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(length = 12)
+    private DocumentType documentType = DocumentType.CI;
+
     @NotBlank
     @Size(max = 50)
     @Column(nullable = false, length = 50)
@@ -29,7 +33,7 @@ public class Tourist extends User {
     private String lastName;
 
     @NotBlank
-    @Size(max = 20)
+    @Size(max = 9)
     @Column(nullable = false, unique = true, length = 20)
     private String ci;
 

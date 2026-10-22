@@ -19,9 +19,11 @@ public class CompanyProviderService {
     private final CompanyProviderRepository companyProviderRepository;
 
     private final PasswordEncoder passwordEncoder;
+    private final AccountEmailService accountEmailService;
 
     @Transactional
     public void registerCompany( CompanyProviderRegistrationRequest request) {
+        PasswordPolicy.requireStrong(request.getPassword());
         if (!request.getPassword().equals(request.getConfirmPassword())) {
             throw new IllegalArgumentException("Las contraseñas no coinciden");
         }
@@ -54,11 +56,22 @@ public class CompanyProviderService {
         company.setDepartment(request.getDepartment());
         company.setCity(request.getCity());
         company.setAddress(request.getAddress());
+        company.setWebsite(optional(request.getWebsite()));
+        company.setInstagram(optional(request.getInstagram()));
+        company.setTwitter(optional(request.getTwitter()));
+        company.setWhatsapp(optional(request.getWhatsapp()));
+        company.setYoutube(optional(request.getYoutube()));
+        company.setFacebook(optional(request.getFacebook()));
         company.setStatus(ProviderStatus.PENDING);
         company.setCompanyName(request.getCompanyName());
         company.setRut(request.getRut());
 
         companyProviderRepository.save(company);
+        accountEmailService.providerRequested(company.getEmail(), company.getUsername());
 
+    }
+
+    private String optional(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

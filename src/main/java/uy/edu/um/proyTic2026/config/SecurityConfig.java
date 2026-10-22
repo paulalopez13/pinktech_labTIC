@@ -31,7 +31,11 @@ public class SecurityConfig {
                                 "/api/auth/password/reset").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/me", "/api/auth/csrf").permitAll()
                         .requestMatchers("/api/profile", "/api/profile/**").permitAll()
-                        .requestMatchers("/api/admin/providers", "/api/admin/providers/**").permitAll()
+                        .requestMatchers("/api/admin/providers", "/api/admin/providers/**",
+                                "/api/admin/administrators", "/api/admin/administrators/**",
+                                "/api/categories", "/api/categories/**",
+                                "/api/activities", "/api/activities/**", "/api/favorites/**",
+                                "/api/reservations", "/api/reservations/**").permitAll()
                         .anyRequest().authenticated())
                 .build();
     }

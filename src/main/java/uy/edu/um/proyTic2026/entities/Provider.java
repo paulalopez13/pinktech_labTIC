@@ -42,4 +42,28 @@ public abstract class Provider extends User {
     @Column(nullable = false, length = 150)
     private String address;
 
+    @Size(max = 250)
+    @Column(length = 250)
+    private String website;
+
+    @Size(max = 100)
+    @Column(length = 100)
+    private String instagram;
+
+    @Size(max = 100)
+    @Column(length = 100)
+    private String twitter;
+
+    @Size(max = 30)
+    @Column(length = 30)
+    private String whatsapp;
+
+    @Size(max = 100)
+    @Column(length = 100)
+    private String youtube;
+
+    @Size(max = 100)
+    @Column(length = 100)
+    private String facebook;
+
 }

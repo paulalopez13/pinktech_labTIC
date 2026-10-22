@@ -8,11 +8,18 @@ public record UserProfileResponse(
         String firstName,
         String lastName,
         String ci,
+        String documentType,
         Integer age,
         String phone,
         String department,
         String city,
         String address,
         String companyName,
-        String rut) {
+        String rut,
+        String website,
+        String instagram,
+        String twitter,
+        String whatsapp,
+        String youtube,
+        String facebook) {
 }

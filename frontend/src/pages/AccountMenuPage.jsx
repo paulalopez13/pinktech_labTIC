@@ -1,59 +1,71 @@
+import UruguayPhotoCarousel from "../components/UruguayPhotoCarousel";
+
 export default function AccountMenuPage({ user, onExplore, onReservations, onMyActivities,
-    onAddActivity, onApproveProviders, onEditCategories, notice }) {
+    onAddActivity, onApproveProviders, onEditCategories, onAddAdministrator, notice }) {
     const roleDetails = {
-        TOURIST: { heading: "Tu espacio de turista", description: "Explorá actividades y experiencias en Uruguay." },
-        PROVIDER: { heading: "Tu espacio de prestador", description: "Gestioná tus actividades y descubrí otras experiencias." },
-        ADMINISTRATOR: { heading: "Administración", description: "Administrá la plataforma o explorá sus actividades." },
+        TOURIST: { heading: "Descubrí Uruguay", description: "Explorá actividades y experiencias en todo el país." },
+        PROVIDER: { heading: "Panel de prestador", description: "Gestioná tus actividades y descubrí nuevas propuestas." },
+        ADMINISTRATOR: { heading: "Panel de gestión", description: "Administrá la plataforma o explorá sus actividades." },
     };
     const details = roleDetails[user.role] || roleDetails.TOURIST;
 
     return (
         <main className="registration-page home-page">
-            <section className="selection-card home-card">
-                <span className="page-label">Hola, {user.username}</span>
-                <h1>{details.heading}</h1>
-                <p>{details.description}</p>
-                {user.role === "PROVIDER" && user.providerStatus === "PENDING" && (
-                    <div className="form-message info dashboard-notice" role="status">
-                        Tu cuenta está pendiente de aprobación. Mientras tanto, podés explorar actividades.
-                    </div>
-                )}
-                {user.role === "PROVIDER" && user.providerStatus === "REJECTED" && (
-                    <div className="form-message info dashboard-notice" role="status">
-                        Tu solicitud de prestador no fue aprobada. Podés explorar actividades.
-                    </div>
-                )}
-                <div className="registration-buttons home-actions">
-                    {user.role === "TOURIST" && (
-                        <button className="registration-button" type="button" onClick={onReservations}>
-                            Mis reservas
+            <section className="home-hero account-hero">
+                <div className="home-copy">
+                    <span className="home-eyebrow"><span /> Hola, {user.username}</span>
+                    <h1>{details.heading}</h1>
+                    <p>{details.description}</p>
+                    {user.role === "PROVIDER" && user.providerStatus === "PENDING" && (
+                        <div className="form-message info dashboard-notice" role="status">
+                            Tu cuenta está pendiente de aprobación. Mientras tanto, podés explorar actividades.
+                        </div>
+                    )}
+                    {user.role === "PROVIDER" && user.providerStatus === "REJECTED" && (
+                        <div className="form-message info dashboard-notice" role="status">
+                            Tu solicitud de prestador no fue aprobada. Podés explorar actividades.
+                        </div>
+                    )}
+                    <div className={`registration-buttons home-actions account-actions ${user.role === "ADMINISTRATOR" ? "admin-account-actions" : ""} ${user.role === "PROVIDER" && user.providerStatus === "APPROVED" ? "provider-account-actions" : ""}`}>
+                        {user.role === "TOURIST" && (
+                            <button className="registration-button" type="button" onClick={onReservations}>
+                                Mis reservas
+                            </button>
+                        )}
+                        {user.role === "PROVIDER" && user.providerStatus === "APPROVED" && (
+                            <>
+                                <button className="registration-button" type="button" onClick={onMyActivities}>
+                                    Mis actividades
+                                </button>
+                                <button className="registration-button" type="button" onClick={onAddActivity}>
+                                    Agregar actividad
+                                </button>
+                            </>
+                        )}
+                        {user.role === "ADMINISTRATOR" && (
+                            <>
+                                <button className="registration-button" type="button" onClick={onApproveProviders}>
+                                    Aprobar prestadores
+                                </button>
+                                <button className="registration-button" type="button" onClick={onEditCategories}>
+                                    Editar categorías
+                                </button>
+                                <button className="registration-button" type="button" onClick={onAddAdministrator}>
+                                    Agregar administrador
+                                </button>
+                            </>
+                        )}
+                        <button className="registration-button" type="button" onClick={onExplore}>
+                            Explorar actividades
                         </button>
-                    )}
-                    {user.role === "PROVIDER" && user.providerStatus === "APPROVED" && (
-                        <>
-                            <button className="registration-button" type="button" onClick={onMyActivities}>
-                                Mis actividades
-                            </button>
-                            <button className="registration-button" type="button" onClick={onAddActivity}>
-                                Agregar actividad
-                            </button>
-                        </>
-                    )}
-                    {user.role === "ADMINISTRATOR" && (
-                        <>
-                            <button className="registration-button" type="button" onClick={onApproveProviders}>
-                                Aprobar prestadores
-                            </button>
-                            <button className="registration-button" type="button" onClick={onEditCategories}>
-                                Editar categorías
-                            </button>
-                        </>
-                    )}
-                    <button className="registration-button" type="button" onClick={onExplore}>
-                        Explorar actividades
-                    </button>
+                    </div>
+                    {notice && <div className="form-message info dashboard-notice" role="status">{notice}</div>}
+                    <div className="home-footnote">
+                        <span className="home-footnote-mark" aria-hidden="true">✳</span>
+                        <span>Pequeñas escapadas. Grandes recuerdos.</span>
+                    </div>
                 </div>
-                {notice && <div className="form-message info dashboard-notice" role="status">{notice}</div>}
+                <UruguayPhotoCarousel />
             </section>
         </main>
     );

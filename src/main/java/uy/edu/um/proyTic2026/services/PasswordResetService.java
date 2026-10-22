@@ -92,6 +92,7 @@ public class PasswordResetService {
 
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
+        PasswordPolicy.requireStrong(request.password());
         if (!request.password().equals(request.confirmPassword())) {
             throw new IllegalArgumentException("Las contraseñas no coinciden.");
         }

@@ -17,8 +17,12 @@ import lombok.Setter;
 
 public class IndividualProvider extends Provider {
 
+    @Column(length = 12)
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    private DocumentType documentType = DocumentType.CI;
+
     @NotBlank
-    @Size(max = 20)
+    @Size(max = 9)
     @Column(length = 20)
     private String firstName;
 

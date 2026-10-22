@@ -5,7 +5,8 @@ function ProviderCard({ application, onDecision, busy }) {
     const isCompany = application.providerType === "EMPRESA";
     const details = isCompany
         ? [["Empresa", application.companyName], ["RUT", application.rut]]
-        : [["Nombre", `${application.firstName} ${application.lastName}`], ["Cédula", application.ci]];
+        : [["Nombre", `${application.firstName} ${application.lastName}`],
+            [application.documentType === "PASSPORT" ? "Pasaporte" : "Cédula", application.ci]];
     details.push(["Usuario", application.username], ["Email", application.email], ["Teléfono", application.phone],
         ["Departamento", application.department], ["Ciudad", application.city], ["Dirección", application.address]);
 

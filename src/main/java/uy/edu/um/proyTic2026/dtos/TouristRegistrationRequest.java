@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import uy.edu.um.proyTic2026.entities.DocumentType;
 
 @Getter
 @Setter
@@ -22,11 +23,13 @@ public class TouristRegistrationRequest {
     private String password;
     @NotBlank @Size(min = 8, max = 30)
     private String confirmPassword;
+    @NotNull
+    private DocumentType documentType;
     @NotBlank @Size(max = 50)
     private String firstName;
     @NotBlank @Size(max = 50)
     private String lastName;
-    @NotBlank @Size(max = 20)
+    @NotBlank @Size(max = 9)
     private String ci;
     @NotNull @Min(0) @Max(120)
     private Integer age;

@@ -19,6 +19,7 @@ import java.util.List;
 public class ProviderApprovalService {
     private final CompanyProviderRepository companyRepository;
     private final IndividualProviderRepository individualRepository;
+    private final AccountEmailService accountEmailService;
 
     @Transactional(readOnly = true)
     public List<ProviderApplicationResponse> listByStatus(ProviderStatus status) {
@@ -39,6 +40,9 @@ public class ProviderApprovalService {
             throw new IllegalArgumentException("Esta solicitud ya fue revisada");
         }
         provider.setStatus(decision);
+        if (decision == ProviderStatus.APPROVED) {
+            accountEmailService.providerApproved(provider.getEmail(), provider.getUsername());
+        }
         return ProviderApplicationResponse.from(provider);
     }
 }

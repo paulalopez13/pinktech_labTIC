@@ -11,6 +11,7 @@ public record ProviderApplicationResponse(
         String firstName,
         String lastName,
         String ci,
+        String documentType,
         String companyName,
         String rut,
         String phone,
@@ -27,6 +28,7 @@ public record ProviderApplicationResponse(
                 individual == null ? null : individual.getFirstName(),
                 individual == null ? null : individual.getLastName(),
                 individual == null ? null : individual.getCi(),
+                individual == null || individual.getDocumentType() == null ? "CI" : individual.getDocumentType().name(),
                 company == null ? null : company.getCompanyName(),
                 company == null ? null : company.getRut(), provider.getPhone(), provider.getDepartment(),
                 provider.getCity(), provider.getAddress(), provider.getStatus());

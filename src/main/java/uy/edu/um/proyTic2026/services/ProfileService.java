@@ -45,9 +45,7 @@ public class ProfileService {
             if (!request.getPassword().equals(request.getConfirmPassword())) {
                 throw new IllegalArgumentException("Las contraseñas no coinciden");
             }
-            if (request.getPassword().length() < 8 || request.getPassword().length() > 30) {
-                throw new IllegalArgumentException("La contraseña debe tener entre 8 y 30 caracteres");
-            }
+            PasswordPolicy.requireStrong(request.getPassword());
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         } else if (confirmationProvided) {
             throw new IllegalArgumentException("Ingresá una contraseña nueva para confirmarla");
@@ -67,6 +65,8 @@ public class ProfileService {
 
     private void updateTourist(Tourist tourist, ProfileUpdateRequest request, Long userId) {
         String ci = required(request.getCi(), "La cédula es obligatoria");
+        DocumentType documentType = resolveDocumentType(request.getDocumentType(), tourist.getDocumentType());
+        validateDocument(documentType, ci);
         if (touristRepository.existsByCiAndIdNot(ci, userId)
                 || individualProviderRepository.existsByCiAndIdNot(ci, userId)) {
             throw new IllegalArgumentException("La cédula ya está registrada");
@@ -74,6 +74,7 @@ public class ProfileService {
         tourist.setFirstName(required(request.getFirstName(), "El nombre es obligatorio"));
         tourist.setLastName(required(request.getLastName(), "El apellido es obligatorio"));
         tourist.setCi(ci);
+        tourist.setDocumentType(documentType);
         if (request.getAge() == null || request.getAge() < 0 || request.getAge() > 120) {
             throw new IllegalArgumentException("La edad debe estar entre 0 y 120 años");
         }
@@ -82,6 +83,8 @@ public class ProfileService {
 
     private void updateIndividualProvider(IndividualProvider provider, ProfileUpdateRequest request, Long userId) {
         String ci = required(request.getCi(), "La cédula es obligatoria");
+        DocumentType documentType = resolveDocumentType(request.getDocumentType(), provider.getDocumentType());
+        validateDocument(documentType, ci);
         if (individualProviderRepository.existsByCiAndIdNot(ci, userId)
                 || touristRepository.existsByCiAndIdNot(ci, userId)) {
             throw new IllegalArgumentException("La cédula ya está registrada");
@@ -89,6 +92,7 @@ public class ProfileService {
         provider.setFirstName(required(request.getFirstName(), "El nombre es obligatorio"));
         provider.setLastName(required(request.getLastName(), "El apellido es obligatorio"));
         provider.setCi(ci);
+        provider.setDocumentType(documentType);
         updateProviderAddress(provider, request);
     }
 
@@ -107,6 +111,27 @@ public class ProfileService {
         provider.setDepartment(required(request.getDepartment(), "El departamento es obligatorio"));
         provider.setCity(required(request.getCity(), "La ciudad es obligatoria"));
         provider.setAddress(required(request.getAddress(), "La dirección es obligatoria"));
+        provider.setWebsite(optional(request.getWebsite()));
+        provider.setInstagram(optional(request.getInstagram()));
+        provider.setTwitter(optional(request.getTwitter()));
+        provider.setWhatsapp(optional(request.getWhatsapp()));
+        provider.setYoutube(optional(request.getYoutube()));
+        provider.setFacebook(optional(request.getFacebook()));
+    }
+
+    private String optional(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private DocumentType resolveDocumentType(DocumentType requested, DocumentType current) {
+        return requested != null ? requested : current != null ? current : DocumentType.CI;
+    }
+
+    private void validateDocument(DocumentType type, String number) {
+        String pattern = type == DocumentType.CI ? "\\d{1,8}" : "[A-Za-z0-9]{1,9}";
+        if (!number.matches(pattern)) {
+            throw new IllegalArgumentException("El documento no tiene un formato válido");
+        }
     }
 
     private User getUser(Long userId) {
@@ -125,24 +150,32 @@ public class ProfileService {
                 : user instanceof Provider ? "PROVIDER"
                 : user instanceof Administrator ? "ADMINISTRATOR" : "USER";
         String providerStatus = user instanceof Provider provider ? provider.getStatus().name() : null;
-        String firstName = null, lastName = null, ci = null, phone = null;
+        String firstName = null, lastName = null, ci = null, phone = null, documentType = null;
         Integer age = null;
         String department = null, city = null, address = null, companyName = null, rut = null;
+        String website = null, instagram = null, twitter = null, whatsapp = null, youtube = null, facebook = null;
 
         if (user instanceof Tourist tourist) {
             firstName = tourist.getFirstName(); lastName = tourist.getLastName();
             ci = tourist.getCi(); age = tourist.getAge();
+            documentType = resolveDocumentType(null, tourist.getDocumentType()).name();
         } else if (user instanceof IndividualProvider provider) {
             firstName = provider.getFirstName(); lastName = provider.getLastName(); ci = provider.getCi();
+            documentType = resolveDocumentType(null, provider.getDocumentType()).name();
             phone = provider.getPhone(); department = provider.getDepartment(); city = provider.getCity();
             address = provider.getAddress();
+            website = provider.getWebsite(); instagram = provider.getInstagram(); twitter = provider.getTwitter();
+            whatsapp = provider.getWhatsapp(); youtube = provider.getYoutube(); facebook = provider.getFacebook();
         } else if (user instanceof CompanyProvider provider) {
             companyName = provider.getCompanyName(); rut = provider.getRut();
             phone = provider.getPhone(); department = provider.getDepartment(); city = provider.getCity();
             address = provider.getAddress();
+            website = provider.getWebsite(); instagram = provider.getInstagram(); twitter = provider.getTwitter();
+            whatsapp = provider.getWhatsapp(); youtube = provider.getYoutube(); facebook = provider.getFacebook();
         }
 
         return new UserProfileResponse(user.getUsername(), user.getEmail(), role, providerStatus,
-                firstName, lastName, ci, age, phone, department, city, address, companyName, rut);
+                firstName, lastName, ci, documentType, age, phone, department, city, address, companyName, rut,
+                website, instagram, twitter, whatsapp, youtube, facebook);
     }
 }

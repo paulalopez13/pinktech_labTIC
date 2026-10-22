@@ -13,7 +13,11 @@ import ProfilePage from "./pages/ProfilePage";
 import ProviderApprovalPage from "./pages/ProviderApprovalPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import AdministratorRegistrationPage from "./pages/AdministratorRegistrationPage";
+import CategoryManagementPage from "./pages/CategoryManagementPage";
+import ActivityFormPage from "./pages/ActivityFormPage";
 import { getCurrentUser, logoutUser } from "./services/authService";
+import BrandLogo from "./components/BrandLogo";
 
 function App() {
     const [selectedType, setSelectedType] = useState(() =>
@@ -28,6 +32,9 @@ function App() {
         }
     });
     const [dashboardNotice, setDashboardNotice] = useState("");
+    const [activityToEdit, setActivityToEdit] = useState(null);
+    const [activityReturn, setActivityReturn] = useState({ id: null, category: "" });
+    const [favoritesViewKey, setFavoritesViewKey] = useState(0);
 
     useEffect(() => {
         let isCurrent = true;
@@ -44,6 +51,13 @@ function App() {
             });
         return () => { isCurrent = false; };
     }, []);
+
+    useEffect(() => {
+        const keepActivityReturn = ["activities", "login", "registration", "tourist", "provider", "company", "individual", "forgotPassword", "resetPassword"].includes(selectedType);
+        if (!keepActivityReturn && (activityReturn.id || activityReturn.category)) {
+            setActivityReturn({ id: null, category: "" });
+        }
+    }, [selectedType, activityReturn.id, activityReturn.category]);
 
     function navigate(page, notice = "") {
         if (page !== "resetPassword" && window.location.search.includes("token=")) {
@@ -67,8 +81,18 @@ function App() {
         setRegistrationMessage("");
         setLoginNotice("");
         setDashboardNotice("");
-        setSelectedType(null);
+        setSelectedType(activityReturn.id ? "activities" : null);
         window.scrollTo(0, 0);
+    }
+
+    function loginForActivity(activityId) {
+        setActivityReturn({ id: activityId, category: "" });
+        navigate("login");
+    }
+
+    function exploreCategory(category) {
+        setActivityReturn({ id: null, category });
+        navigate("activities");
     }
 
     async function handleLogout() {
@@ -107,17 +131,44 @@ function App() {
         }} />;
     } else if (selectedType === "approveProviders") {
         page = <ProviderApprovalPage onBack={() => navigate(null)} />;
+    } else if (selectedType === "addAdministrator" && currentUser?.role === "ADMINISTRATOR") {
+        page = <AdministratorRegistrationPage onBack={() => navigate(null)} />;
+    } else if (selectedType === "categories" && currentUser?.role === "ADMINISTRATOR") {
+        page = <CategoryManagementPage onBack={() => navigate(null)} />;
+    } else if (selectedType === "addActivity" && currentUser?.role === "PROVIDER" && currentUser?.providerStatus === "APPROVED") {
+        page = <ActivityFormPage onBack={() => navigate(null)} onSaved={() => {
+            setDashboardNotice("La actividad se guardó correctamente.");
+            navigate(null);
+        }} />;
+    } else if (selectedType === "editActivity" && currentUser?.role === "PROVIDER" && currentUser?.providerStatus === "APPROVED" && activityToEdit) {
+        page = <ActivityFormPage activity={activityToEdit} onBack={() => navigate("myActivities")} onSaved={() => {
+            setDashboardNotice("Los cambios de la actividad se guardaron.");
+            setActivityToEdit(null);
+            navigate("myActivities");
+        }} />;
     } else if (selectedType === "registration") {
         page = <RegistrationTypePage onSelectTourist={() => navigate("tourist")} onSelectProvider={() => navigate("provider")} />;
     } else if (selectedType === "activities") {
-        page = <ActivitiesPage onBack={() => navigate(null)} />;
+        page = <ActivitiesPage onBack={() => navigate(null)} currentUser={currentUser}
+            onLogin={loginForActivity} initialActivityId={activityReturn.id} initialCategory={activityReturn.category}
+            onReserved={message => setDashboardNotice(message)}
+            onAddActivity={() => navigate("addActivity")} />;
+    } else if (selectedType === "favorites" && currentUser?.role === "TOURIST") {
+        page = <ActivitiesPage key={favoritesViewKey} mode="favorites" onBack={() => navigate(null)} currentUser={currentUser}
+            onLogin={loginForActivity} onReserved={message => setDashboardNotice(message)} />;
+    } else if (selectedType === "myActivities" && currentUser?.role === "PROVIDER" && currentUser?.providerStatus === "APPROVED") {
+        page = <ActivitiesPage mode="mine" currentUser={currentUser} onBack={() => navigate(null)}
+            onExploreCategory={exploreCategory}
+            onAddActivity={() => navigate("addActivity")}
+            onEdit={activity => { setActivityToEdit(activity); navigate("editActivity"); }} />;
     } else if (currentUser) {
         page = <AccountMenuPage user={currentUser} onExplore={() => navigate("activities")}
             onReservations={() => setDashboardNotice("La opción para consultar tus reservas todavía no está disponible.")}
-            onMyActivities={() => setDashboardNotice("La opción para consultar tus actividades todavía no está disponible.")}
-            onAddActivity={() => setDashboardNotice("La opción para agregar actividades todavía no está disponible.")}
+            onMyActivities={() => navigate("myActivities")}
+            onAddActivity={() => navigate("addActivity")}
             onApproveProviders={() => navigate("approveProviders")}
-            onEditCategories={() => setDashboardNotice("La edición de categorías todavía no está disponible.")}
+            onEditCategories={() => navigate("categories")}
+            onAddAdministrator={() => navigate("addAdministrator")}
             notice={dashboardNotice} />;
     } else {
         page = <HomePage onExplore={() => navigate("activities")} />;
@@ -127,13 +178,16 @@ function App() {
         <>
             <header className="site-header">
                 <button type="button" className="brand-button" onClick={() => navigate(null)}
-                    aria-label="Uruguay Mnatural: volver al inicio">Uruguay Mnatural</button>
+                    aria-label="Uruguay Mnatural: volver al inicio"><BrandLogo /></button>
                 <nav className="header-actions" aria-label="Navegación de cuenta">
                     {currentUser ? (
                         <>
                             <button type="button" className="text-button" onClick={() => navigate("profile")}>
                                 Mi perfil
                             </button>
+                            {currentUser.role === "TOURIST" && <button type="button" className="text-button" onClick={() => { setFavoritesViewKey(key => key + 1); navigate("favorites"); }}>
+                                Mis favoritos
+                            </button>}
                             <button type="button" className="text-button" onClick={handleLogout}>Cerrar sesión</button>
                         </>
                     ) : (

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { resetPassword } from "../services/passwordResetService";
+import PasswordStrength from "../components/PasswordStrength";
+import { passwordStrength } from "../components/fieldRules";
 
 export default function ResetPasswordPage({ token, onBack, onRequestLink }) {
     const [password, setPassword] = useState("");
@@ -15,6 +17,10 @@ export default function ResetPasswordPage({ token, onBack, onRequestLink }) {
         setMessage("");
         if (password !== confirmPassword) {
             setError("Las contraseñas no coinciden.");
+            return;
+        }
+        if (passwordStrength(password) !== "strong") {
+            setError("Elegí una contraseña segura: mínimo 8 caracteres, mayúscula, minúscula, número y símbolo.");
             return;
         }
         setIsSubmitting(true);
@@ -51,6 +57,7 @@ export default function ResetPasswordPage({ token, onBack, onRequestLink }) {
                             Nueva contraseña
                             <input type="password" autoComplete="new-password" minLength={8} maxLength={30}
                                 value={password} onChange={event => setPassword(event.target.value)} required />
+                            <PasswordStrength password={password} />
                         </label>
                         <label className="form-field">
                             Repetir nueva contraseña
