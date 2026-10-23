@@ -379,7 +379,8 @@ public class ActivityService {
         return activity.getStartTimes().contains(dateTime.toLocalTime()) && occursOn(activity, dateTime.toLocalDate());
     }
 
-    private boolean occursOn(Activity activity, LocalDate date) {
+    // Público para que la API pública pueda saber qué actividades se hacen un día dado.
+    public boolean occursOn(Activity activity, LocalDate date) {
         if (date.isBefore(activity.getFirstDate()) || (activity.getRepeatUntil() != null && date.isAfter(activity.getRepeatUntil()))) return false;
         return switch (activity.getRecurrence()) {
             case ONCE -> date.equals(activity.getFirstDate());

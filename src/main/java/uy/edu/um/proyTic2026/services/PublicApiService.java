@@ -16,6 +16,7 @@ import uy.edu.um.proyTic2026.repositories.IndividualProviderRepository;
 import uy.edu.um.proyTic2026.repositories.ProviderRepository;
 
 import java.text.Normalizer;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -35,6 +36,23 @@ public class PublicApiService {
     public List<ProviderPublicResponse> providers() {
         return providerRepository.findAllByStatusOrderByIdAsc(ProviderStatus.APPROVED).stream()
                 .map(provider -> activityService.publicProvider(provider.getId())).toList();
+    }
+
+    // 2. Actividades que se realizan un día en un departamento (y, si se indica, en una localidad).
+    // Compara sin mayúsculas ni tildes, así "paysandu" encuentra "Paysandú".
+    @Transactional(readOnly = true)
+    public List<ActivityResponse> activitiesOn(LocalDate date, String department, String city) {
+        if (department == null || department.isBlank()) {
+            throw new IllegalArgumentException("Indicá el departamento.");
+        }
+        String wantedDepartment = normalize(department);
+        String wantedCity = city == null || city.isBlank() ? null : normalize(city);
+        return activityRepository.findAllByOrderByNameAsc().stream()
+                .filter(activity -> normalize(activity.getDepartment()).equals(wantedDepartment))
+                .filter(activity -> wantedCity == null || normalize(activity.getCity()).equals(wantedCity))
+                // Usa la misma regla de repetición (diaria, semanal, etc.) que la página para saber si hay salida ese día.
+                .filter(activity -> activityService.occursOn(activity, date))
+                .map(activity -> activityService.get(activity.getId())).toList();
     }
 
     // 4. Verificar un emprendimiento por su RUT (empresa) o cédula (prestador particular).

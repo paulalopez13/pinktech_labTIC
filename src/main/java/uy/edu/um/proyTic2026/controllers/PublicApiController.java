@@ -1,9 +1,12 @@
 package uy.edu.um.proyTic2026.controllers;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import uy.edu.um.proyTic2026.services.PublicApiService;
+
+import java.time.LocalDate;
 
 // API abierta para que otras plataformas consulten la oferta de Uruguay Mnatural.
 // Solo tiene consultas (GET), no necesita sesión y acepta pedidos desde cualquier origen.
@@ -25,6 +28,16 @@ public class PublicApiController {
     @GetMapping("/providers/verify")
     public ResponseEntity<?> verify(@RequestParam String document) {
         return ResponseEntity.ok(publicApiService.verify(document));
+    }
+
+    // GET /api/public/activities?department=Maldonado&city=Punta del Este&date=2026-11-02
+    // La localidad es opcional. Si no se manda la fecha, se usa la de hoy.
+    @GetMapping("/activities")
+    public ResponseEntity<?> activitiesOn(@RequestParam String department,
+                                          @RequestParam(required = false) String city,
+                                          @RequestParam(required = false)
+                                          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return ResponseEntity.ok(publicApiService.activitiesOn(date == null ? LocalDate.now() : date, department, city));
     }
 
     // GET /api/public/activities/search?q=ballenas
