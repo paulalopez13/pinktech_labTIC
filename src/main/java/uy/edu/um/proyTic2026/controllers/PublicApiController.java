@@ -1,0 +1,22 @@
+package uy.edu.um.proyTic2026.controllers;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import uy.edu.um.proyTic2026.services.PublicApiService;
+
+// API abierta para que otras plataformas consulten la oferta de Uruguay Mnatural.
+// Solo tiene consultas (GET), no necesita sesión y acepta pedidos desde cualquier origen.
+@RestController
+@RequestMapping("/api/public")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
+public class PublicApiController {
+    private final PublicApiService publicApiService;
+
+    // GET /api/public/providers
+    @GetMapping("/providers")
+    public ResponseEntity<?> providers() {
+        return ResponseEntity.ok(publicApiService.providers());
+    }
+}

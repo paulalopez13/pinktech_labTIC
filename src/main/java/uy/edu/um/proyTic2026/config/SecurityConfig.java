@@ -30,6 +30,8 @@ public class SecurityConfig {
                                 "/api/auth/login", "/api/auth/logout", "/api/auth/password/forgot",
                                 "/api/auth/password/reset").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/me", "/api/auth/csrf").permitAll()
+                        // API pública para otras plataformas: solo lectura y sin iniciar sesión.
+                        .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
                         .requestMatchers("/api/profile", "/api/profile/**").permitAll()
                         .requestMatchers("/api/admin/providers", "/api/admin/providers/**",
                                 "/api/admin/administrators", "/api/admin/administrators/**",
