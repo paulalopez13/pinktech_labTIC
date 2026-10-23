@@ -6,6 +6,7 @@ import uy.edu.um.proyTic2026.entities.CompanyProvider;
 import uy.edu.um.proyTic2026.entities.ProviderStatus;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface CompanyProviderRepository extends JpaRepository<CompanyProvider, Long> {
@@ -13,5 +14,6 @@ public interface CompanyProviderRepository extends JpaRepository<CompanyProvider
     boolean existsByRut(String rut);
     boolean existsByRutAndIdNot(String rut, Long id);
     List<CompanyProvider> findAllByStatusOrderByIdAsc(ProviderStatus status);
+    Optional<CompanyProvider> findByRut(String rut);
 
 }

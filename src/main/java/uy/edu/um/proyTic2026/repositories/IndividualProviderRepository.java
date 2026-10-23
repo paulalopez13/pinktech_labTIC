@@ -6,6 +6,7 @@ import uy.edu.um.proyTic2026.entities.IndividualProvider;
 import uy.edu.um.proyTic2026.entities.ProviderStatus;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface IndividualProviderRepository extends JpaRepository<IndividualProvider, Long> {
@@ -13,5 +14,6 @@ public interface IndividualProviderRepository extends JpaRepository<IndividualPr
     boolean existsByCi(String ci);
     boolean existsByCiAndIdNot(String ci, Long id);
     List<IndividualProvider> findAllByStatusOrderByIdAsc(ProviderStatus status);
+    Optional<IndividualProvider> findByCi(String ci);
 
 }

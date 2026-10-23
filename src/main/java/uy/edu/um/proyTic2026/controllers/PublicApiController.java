@@ -19,4 +19,11 @@ public class PublicApiController {
     public ResponseEntity<?> providers() {
         return ResponseEntity.ok(publicApiService.providers());
     }
+
+    // GET /api/public/providers/verify?document=44444444
+    // Acepta un RUT (empresa) o una cédula (prestador particular).
+    @GetMapping("/providers/verify")
+    public ResponseEntity<?> verify(@RequestParam String document) {
+        return ResponseEntity.ok(publicApiService.verify(document));
+    }
 }
