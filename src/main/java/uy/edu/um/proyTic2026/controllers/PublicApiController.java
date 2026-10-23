@@ -26,4 +26,10 @@ public class PublicApiController {
     public ResponseEntity<?> verify(@RequestParam String document) {
         return ResponseEntity.ok(publicApiService.verify(document));
     }
+
+    // GET /api/public/activities/search?q=ballenas
+    @GetMapping("/activities/search")
+    public ResponseEntity<?> search(@RequestParam("q") String keyword) {
+        return ResponseEntity.ok(publicApiService.search(keyword));
+    }
 }

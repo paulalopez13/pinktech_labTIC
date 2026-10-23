@@ -3,16 +3,22 @@ package uy.edu.um.proyTic2026.services;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import uy.edu.um.proyTic2026.dtos.ActivityResponse;
 import uy.edu.um.proyTic2026.dtos.ProviderPublicResponse;
 import uy.edu.um.proyTic2026.dtos.ProviderVerificationResponse;
+import uy.edu.um.proyTic2026.entities.Activity;
 import uy.edu.um.proyTic2026.entities.CompanyProvider;
 import uy.edu.um.proyTic2026.entities.Provider;
 import uy.edu.um.proyTic2026.entities.ProviderStatus;
+import uy.edu.um.proyTic2026.repositories.ActivityRepository;
 import uy.edu.um.proyTic2026.repositories.CompanyProviderRepository;
 import uy.edu.um.proyTic2026.repositories.IndividualProviderRepository;
 import uy.edu.um.proyTic2026.repositories.ProviderRepository;
 
+import java.text.Normalizer;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 @Service
@@ -21,6 +27,7 @@ public class PublicApiService {
     private final ProviderRepository providerRepository;
     private final CompanyProviderRepository companyProviderRepository;
     private final IndividualProviderRepository individualProviderRepository;
+    private final ActivityRepository activityRepository;
     private final ActivityService activityService;
 
     // 1. Listado de todos los emprendimientos aprobados.
@@ -53,5 +60,31 @@ public class PublicApiService {
         ProviderPublicResponse profile = activityService.publicProvider(provider.getId());
         return new ProviderVerificationResponse(clean, true, true, provider.getId(), profile.displayName(),
                 provider instanceof CompanyProvider ? "Empresa" : "Prestador independiente");
+    }
+
+    // 5. Buscar actividades por palabra clave, sin importar mayúsculas ni tildes ("jose" encuentra "José").
+    @Transactional(readOnly = true)
+    public List<ActivityResponse> search(String keyword) {
+        if (keyword == null || keyword.trim().length() < 2) {
+            throw new IllegalArgumentException("Ingresá una palabra de al menos 2 letras.");
+        }
+        String wanted = normalize(keyword);
+        return activityRepository.findAllByOrderByNameAsc().stream()
+                .filter(activity -> matches(activity, wanted))
+                // Se reutiliza la misma respuesta que usa la página para mostrar una actividad.
+                .map(activity -> activityService.get(activity.getId())).toList();
+    }
+
+    // La palabra puede estar en el nombre, la descripción, la ciudad, el departamento o alguna categoría.
+    private boolean matches(Activity activity, String wanted) {
+        List<String> texts = new ArrayList<>(List.of(activity.getName(), activity.getDescription(),
+                activity.getCity(), activity.getDepartment()));
+        activity.getCategories().forEach(category -> texts.add(category.getName()));
+        return texts.stream().anyMatch(text -> normalize(text).contains(wanted));
+    }
+
+    // Pasa a minúsculas y saca las tildes: "José" -> "jose".
+    private String normalize(String text) {
+        return Normalizer.normalize(text.trim(), Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT);
     }
 }
