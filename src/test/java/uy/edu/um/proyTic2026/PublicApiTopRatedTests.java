@@ -20,7 +20,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 // Prueba el top 3 de actividades mejor puntuadas del mes (API pública).
-// @Transactional hace que todo lo que se crea en cada test se borre al terminar.
+// @Transactional hace que lo que se crea en cada test se borre al terminar.
 @SpringBootTest
 @Transactional
 class PublicApiTopRatedTests {
