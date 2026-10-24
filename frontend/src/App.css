@@ -1316,6 +1316,7 @@ button:focus-visible {
 }
 
 /* Reservas recibidas (prestador) */
+.reservations-page { margin: 0 auto; }
 .provider-reservation-filters { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .provider-reservation-tabs { display: flex; gap: 6px; padding: 4px; border: 1px solid #d7e4dc; border-radius: 999px; background: #f7f9f3; }
 .provider-reservation-tabs button { padding: 8px 18px; border: 0; border-radius: 999px; background: transparent; color: #486357; font: inherit; cursor: pointer; }
@@ -1324,7 +1325,8 @@ button:focus-visible {
 .provider-reservation-group { padding: 20px; border: 1px solid #d9e5dc; border-radius: 14px; background: white; }
 .provider-reservation-group > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .provider-reservation-group h2 { margin: 0 0 4px; color: #174e4a; font-size: 20px; }
-.provider-reservation-group header p { margin: 0; color: #63766d; text-transform: capitalize; }
+.provider-reservation-group header p { margin: 0; color: #63766d; }
+.provider-reservation-group header p::first-letter { text-transform: uppercase; }
 .provider-reservation-group header strong { color: #276b4a; white-space: nowrap; }
 .provider-reservation { padding: 14px 0; border-top: 1px solid #e6eee8; }
 .provider-reservation-contact { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
