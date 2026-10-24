@@ -48,7 +48,8 @@ class CompanyRegistrationIntegrationTests {
 
         String body = """
                 {"username":"empresa_prueba","email":"prueba@example.com",
-                "password":"Prueba1234","phone":"099123456","department":"Montevideo",
+                "password":"Prueba1234!","confirmPassword":"Prueba1234!","phone":"+59899123456",
+                "department":"Montevideo",
                 "city":"Montevideo","address":"Calle 123","companyName":"Empresa prueba",
                 "rut":"001234567890"}
                 """;
@@ -56,14 +57,14 @@ class CompanyRegistrationIntegrationTests {
         assertEquals(201, response.statusCode(), response.body());
         assertEquals("http://localhost:5173",
                 response.headers().firstValue("Access-Control-Allow-Origin").orElseThrow());
-        assertFalse(response.body().contains("Prueba1234"));
+        assertFalse(response.body().contains("Prueba1234!"));
         assertFalse(response.body().contains("$2"));
         var saved = repository.findAll().stream()
                 .filter(company -> company.getUsername().equals("empresa_prueba"))
                 .findFirst().orElseThrow();
         assertEquals(ProviderStatus.PENDING, saved.getStatus());
-        assertNotEquals("Prueba1234", saved.getPassword());
-        assertTrue(passwordEncoder.matches("Prueba1234", saved.getPassword()));
+        assertNotEquals("Prueba1234!", saved.getPassword());
+        assertTrue(passwordEncoder.matches("Prueba1234!", saved.getPassword()));
 
         var duplicateUsername = register(body);
         assertEquals(400, duplicateUsername.statusCode());
@@ -76,7 +77,7 @@ class CompanyRegistrationIntegrationTests {
         assertEquals(400, duplicateRut.statusCode());
         assertTrue(duplicateRut.body().contains("RUT"));
 
-        var invalid = register(body.replace("Prueba1234", "corta"));
+        var invalid = register(body.replace("Prueba1234!", "corta"));
         assertEquals(400, invalid.statusCode());
         assertTrue(invalid.body().contains("password"));
     }

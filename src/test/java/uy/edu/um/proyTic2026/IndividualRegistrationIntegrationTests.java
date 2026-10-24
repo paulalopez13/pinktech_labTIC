@@ -48,22 +48,22 @@ class IndividualRegistrationIntegrationTests {
 
         String body = """
                 {"username":"particular_prueba","email":"particular@example.com",
-                "password":"Prueba1234","phone":"099123456","department":"Montevideo",
-                "city":"Montevideo","address":"Calle 123","firstName":"Ana","lastName":"Prueba",
-                "ci":"00123456"}
+                "password":"Prueba1234!","confirmPassword":"Prueba1234!","phone":"+59899123456",
+                "department":"Montevideo","city":"Montevideo","address":"Calle 123","firstName":"Ana",
+                "lastName":"Prueba","documentType":"CI","ci":"00123456"}
                 """;
         var response = register(body);
         assertEquals(201, response.statusCode(), response.body());
         assertEquals("http://localhost:5173",
                 response.headers().firstValue("Access-Control-Allow-Origin").orElseThrow());
-        assertFalse(response.body().contains("Prueba1234"));
+        assertFalse(response.body().contains("Prueba1234!"));
         assertFalse(response.body().contains("$2"));
         var saved = repository.findAll().stream()
                 .filter(company -> company.getUsername().equals("particular_prueba"))
                 .findFirst().orElseThrow();
         assertEquals(ProviderStatus.PENDING, saved.getStatus());
-        assertNotEquals("Prueba1234", saved.getPassword());
-        assertTrue(passwordEncoder.matches("Prueba1234", saved.getPassword()));
+        assertNotEquals("Prueba1234!", saved.getPassword());
+        assertTrue(passwordEncoder.matches("Prueba1234!", saved.getPassword()));
 
         var duplicateUsername = register(body);
         assertEquals(400, duplicateUsername.statusCode());
@@ -76,7 +76,7 @@ class IndividualRegistrationIntegrationTests {
         assertEquals(400, duplicateCi.statusCode());
         assertTrue(duplicateCi.body().contains("cédula"));
 
-        var invalid = register(body.replace("Prueba1234", "corta"));
+        var invalid = register(body.replace("Prueba1234!", "corta"));
         assertEquals(400, invalid.statusCode());
         assertTrue(invalid.body().contains("password"));
     }
