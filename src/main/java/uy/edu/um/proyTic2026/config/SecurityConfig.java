@@ -32,6 +32,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/auth/me", "/api/auth/csrf").permitAll()
                         // API pública para otras plataformas: solo lectura y sin iniciar sesión.
                         .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
+                        // Documentación de la API (Swagger): se puede ver sin iniciar sesión.
+                        .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/profile", "/api/profile/**").permitAll()
                         .requestMatchers("/api/admin/providers", "/api/admin/providers/**",
                                 "/api/admin/administrators", "/api/admin/administrators/**",
