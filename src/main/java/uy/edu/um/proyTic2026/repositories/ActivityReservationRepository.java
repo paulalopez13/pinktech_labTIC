@@ -20,4 +20,6 @@ public interface ActivityReservationRepository extends JpaRepository<ActivityRes
     boolean existsByActivity_IdAndTourist_Id(Long activityId, Long touristId);
     List<ActivityReservation> findAllByTourist_IdOrderByActivityStartDesc(Long touristId);
     List<ActivityReservation> findAllByActivity_IdOrderByActivityStartAsc(Long activityId);
+    // Todas las reservas de las actividades de un prestador, de la más próxima a la más lejana.
+    List<ActivityReservation> findAllByActivity_Provider_IdOrderByActivityStartAsc(Long providerId);
 }
