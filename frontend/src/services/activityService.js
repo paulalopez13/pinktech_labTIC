@@ -32,6 +32,7 @@ async function mutation(path, method, body) {
 export const getActivities = () => request("/activities");
 export const getMyActivities = () => request("/activities/mine");
 export const getMyReservations = () => request("/reservations/mine");
+export const getProviderReservations = () => request("/reservations/provider");
 export const getActivityReviews = id => request(`/activities/${id}/reviews`);
 export const getActivityAvailability = (id, activityStart) => request(`/activities/${id}/availability?activityStart=${encodeURIComponent(activityStart)}`);
 export const getPublicProvider = id => request(`/activities/providers/${id}`);

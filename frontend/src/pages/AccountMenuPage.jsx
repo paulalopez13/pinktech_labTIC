@@ -1,6 +1,6 @@
 import UruguayPhotoCarousel from "../components/UruguayPhotoCarousel";
 
-export default function AccountMenuPage({ user, onExplore, onReservations, onMyActivities,
+export default function AccountMenuPage({ user, onExplore, onReservations, onMyActivities, onProviderReservations,
     onAddActivity, onApproveProviders, onEditCategories, onAddAdministrator, notice }) {
     const roleDetails = {
         TOURIST: { heading: "Descubrí Uruguay", description: "Explorá actividades y experiencias en todo el país." },
@@ -39,6 +39,9 @@ export default function AccountMenuPage({ user, onExplore, onReservations, onMyA
                                 </button>
                                 <button className="registration-button" type="button" onClick={onAddActivity}>
                                     Agregar actividad
+                                </button>
+                                <button className="registration-button" type="button" onClick={onProviderReservations}>
+                                    Reservas recibidas
                                 </button>
                             </>
                         )}
