@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import uy.edu.um.proyTic2026.services.PublicApiService;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 
 // API abierta para que otras plataformas consulten la oferta de Uruguay Mnatural.
 // Solo tiene consultas (GET), no necesita sesión y acepta pedidos desde cualquier origen.
@@ -38,6 +39,15 @@ public class PublicApiController {
                                           @RequestParam(required = false)
                                           @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ResponseEntity.ok(publicApiService.activitiesOn(date == null ? LocalDate.now() : date, department, city));
+    }
+
+    // GET /api/public/activities/top?department=Maldonado&month=2026-10
+    // Si no se manda el mes, se usa el actual.
+    @GetMapping("/activities/top")
+    public ResponseEntity<?> topRated(@RequestParam String department,
+                                      @RequestParam(required = false)
+                                      @DateTimeFormat(pattern = "yyyy-MM") YearMonth month) {
+        return ResponseEntity.ok(publicApiService.topRated(department, month == null ? YearMonth.now() : month));
     }
 
     // GET /api/public/activities/search?q=ballenas

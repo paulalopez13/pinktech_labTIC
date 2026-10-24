@@ -6,20 +6,28 @@ import org.springframework.transaction.annotation.Transactional;
 import uy.edu.um.proyTic2026.dtos.ActivityResponse;
 import uy.edu.um.proyTic2026.dtos.ProviderPublicResponse;
 import uy.edu.um.proyTic2026.dtos.ProviderVerificationResponse;
+import uy.edu.um.proyTic2026.dtos.TopActivityResponse;
 import uy.edu.um.proyTic2026.entities.Activity;
+import uy.edu.um.proyTic2026.entities.ActivityReview;
 import uy.edu.um.proyTic2026.entities.CompanyProvider;
 import uy.edu.um.proyTic2026.entities.Provider;
 import uy.edu.um.proyTic2026.entities.ProviderStatus;
 import uy.edu.um.proyTic2026.repositories.ActivityRepository;
+import uy.edu.um.proyTic2026.repositories.ActivityReviewRepository;
 import uy.edu.um.proyTic2026.repositories.CompanyProviderRepository;
 import uy.edu.um.proyTic2026.repositories.IndividualProviderRepository;
 import uy.edu.um.proyTic2026.repositories.ProviderRepository;
 
 import java.text.Normalizer;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.Optional;
 
 @Service
@@ -29,6 +37,7 @@ public class PublicApiService {
     private final CompanyProviderRepository companyProviderRepository;
     private final IndividualProviderRepository individualProviderRepository;
     private final ActivityRepository activityRepository;
+    private final ActivityReviewRepository reviewRepository;
     private final ActivityService activityService;
 
     // 1. Listado de todos los emprendimientos aprobados.
@@ -53,6 +62,46 @@ public class PublicApiService {
                 // Usa la misma regla de repetición (diaria, semanal, etc.) que la página para saber si hay salida ese día.
                 .filter(activity -> activityService.occursOn(activity, date))
                 .map(activity -> activityService.get(activity.getId())).toList();
+    }
+
+    // 3. Las 3 actividades mejor puntuadas de un departamento entre las que se realizaron ese mes.
+    // Cuenta la fecha en que se hizo la actividad, no la fecha en que se escribió la opinión.
+    @Transactional(readOnly = true)
+    public List<TopActivityResponse> topRated(String department, YearMonth month) {
+        if (department == null || department.isBlank()) {
+            throw new IllegalArgumentException("Indicá el departamento.");
+        }
+        String wantedDepartment = normalize(department);
+
+        // Desde el día 1 del mes a las 00:00 hasta el día 1 del mes siguiente a las 00:00.
+        LocalDateTime from = month.atDay(1).atStartOfDay();
+        LocalDateTime to = month.plusMonths(1).atDay(1).atStartOfDay();
+
+        // Opiniones de las salidas realizadas ese mes, agrupadas por actividad, solo del departamento pedido.
+        Map<Activity, List<ActivityReview>> reviewsByActivity = reviewRepository
+                .findAllByReservation_ActivityStartGreaterThanEqualAndReservation_ActivityStartLessThan(from, to).stream()
+                .filter(review -> normalize(review.getReservation().getActivity().getDepartment()).equals(wantedDepartment))
+                .collect(Collectors.groupingBy(review -> review.getReservation().getActivity()));
+
+        // Ordena por mejor promedio; si empatan, gana la que tiene más opiniones. Se queda con las 3 primeras.
+        List<Map.Entry<Activity, List<ActivityReview>>> ranking = reviewsByActivity.entrySet().stream()
+                .sorted(Comparator.comparingDouble((Map.Entry<Activity, List<ActivityReview>> entry) -> average(entry.getValue()))
+                        .thenComparingInt(entry -> entry.getValue().size())
+                        .reversed())
+                .limit(3).toList();
+
+        List<TopActivityResponse> result = new ArrayList<>();
+        for (int index = 0; index < ranking.size(); index++) {
+            Activity activity = ranking.get(index).getKey();
+            List<ActivityReview> reviews = ranking.get(index).getValue();
+            result.add(new TopActivityResponse(index + 1, average(reviews), reviews.size(),
+                    activityService.get(activity.getId())));
+        }
+        return result;
+    }
+
+    private double average(List<ActivityReview> reviews) {
+        return reviews.stream().mapToInt(ActivityReview::getRating).average().orElse(0);
     }
 
     // 4. Verificar un emprendimiento por su RUT (empresa) o cédula (prestador particular).
