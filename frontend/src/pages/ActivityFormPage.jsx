@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import LocationFields from "../components/LocationFields";
 import { getCategories } from "../services/categoryService";
 import { createActivity, updateActivity } from "../services/activityService";
+import { cutoffText } from "../components/cutoffText";
 
 const weekdayOptions = [
     ["MONDAY", "Lunes"], ["TUESDAY", "Martes"], ["WEDNESDAY", "Miércoles"],
@@ -31,7 +32,7 @@ function blankForm() {
     return {
         name: "", department: "", city: "", location: "", description: "", categoryIds: [],
         firstDate: localToday(), recurrence: "ONCE", repeatUntil: "", startTimes: ["10:00"], weekdays: [],
-        capacity: "10", price: "", durationMinutes: "60", bookingCutoffHours: "0", equipment: "",
+        capacity: "10", price: "", durationMinutes: "60", bookingCutoffMinutes: "0", equipment: "",
         minimumAge: "", maximumAge: "", minimumHeightCm: "", maximumHeightCm: "",
         difficulty: "", otherRequirements: "",
     };
@@ -43,7 +44,7 @@ function formFromActivity(activity) {
         startTimes: activity.startTimes, weekdays: activity.weekdays,
         capacity: String(activity.capacity), durationMinutes: String(activity.durationMinutes),
         price: activity.price == null ? "" : String(activity.price),
-        bookingCutoffHours: String(activity.bookingCutoffHours),
+        bookingCutoffMinutes: String(activity.bookingCutoffMinutes),
         minimumAge: activity.minimumAge == null ? "" : String(activity.minimumAge),
         maximumAge: activity.maximumAge == null ? "" : String(activity.maximumAge),
         minimumHeightCm: activity.minimumHeightCm == null ? "" : String(activity.minimumHeightCm),
@@ -147,7 +148,7 @@ export default function ActivityFormPage({ activity, onBack, onSaved }) {
             weekdays: ["WEEKLY", "BIWEEKLY", "SEASONAL"].includes(form.recurrence) ? form.weekdays : [],
             capacity: Number(form.capacity), durationMinutes: Number(form.durationMinutes),
             price: Number(form.price),
-            bookingCutoffHours: Number(form.bookingCutoffHours),
+            bookingCutoffMinutes: Number(form.bookingCutoffMinutes),
             equipment: form.equipment,
             minimumAge: form.minimumAge ? Number(form.minimumAge) : null,
             maximumAge: form.maximumAge ? Number(form.maximumAge) : null,
@@ -290,9 +291,10 @@ export default function ActivityFormPage({ activity, onBack, onSaved }) {
                                 <input type="number" min="0" max="99999999.99" step="0.01" value={form.price}
                                     onChange={event => change("price", event.target.value)} placeholder="0 si es gratis" required />
                             </label>
-                            <label className="form-field">Cerrar reservas (horas antes)
-                                <input type="number" min="0" max="720" value={form.bookingCutoffHours}
-                                    onChange={event => change("bookingCutoffHours", event.target.value)} required />
+                            <label className="form-field">Cerrar reservas (minutos antes)
+                                <input type="number" min="0" max="43200" value={form.bookingCutoffMinutes}
+                                    onChange={event => change("bookingCutoffMinutes", event.target.value)} required />
+                                <small>0 = se puede reservar hasta la hora de inicio. Reservas cierran {cutoffText(form.bookingCutoffMinutes)}.</small>
                             </label>
                         </div>
                     </div>}
@@ -363,7 +365,7 @@ export default function ActivityFormPage({ activity, onBack, onSaved }) {
                             {form.repeatUntil && <p><strong>Hasta:</strong> {form.repeatUntil}</p>}
                             <p><strong>Horarios:</strong> {form.startTimes.join(" · ")}</p>
                             <p><strong>Duración:</strong> {form.durationMinutes} minutos</p>
-                            <p><strong>Reservas cierran:</strong> {form.bookingCutoffHours} horas antes</p>
+                            <p><strong>Reservas cierran:</strong> {cutoffText(form.bookingCutoffMinutes)}</p>
                         </div>
                         {hasRequirements && <div className="activity-preview-requirements">
                             <h4>Requisitos para participar</h4>

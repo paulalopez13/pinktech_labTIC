@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getActivityReviews, getActivityAvailability } from "../services/activityService";
 import ActivityReservationWizard from "../components/ActivityReservationWizard";
+import { cutoffText } from "../components/cutoffText";
 
 const weekdayLabels = { MONDAY: "lunes", TUESDAY: "martes", WEDNESDAY: "miércoles", THURSDAY: "jueves", FRIDAY: "viernes", SATURDAY: "sábado", SUNDAY: "domingo" };
 const recurrenceLabels = { ONCE: "Una sola vez", DAILY: "Diariamente", WEEKLY: "Semanalmente", BIWEEKLY: "Cada 2 semanas", MONTHLY: "Mensualmente", SEASONAL: "Por temporada" };
@@ -114,7 +115,7 @@ export default function ActivityDetailPage({ activity, currentUser, isOwner = fa
                 <p><strong>Frecuencia:</strong> {recurrence}{activity.repeatUntil ? ` hasta ${new Date(`${activity.repeatUntil}T12:00:00`).toLocaleDateString("es-UY")}` : ""}</p>
                 <p><strong>Horarios:</strong> {activity.startTimes.join(" · ")}</p>
                 <p><strong>Duración:</strong> {activity.durationMinutes >= 60 ? `${Math.floor(activity.durationMinutes / 60)} h${activity.durationMinutes % 60 ? ` ${activity.durationMinutes % 60} min` : ""}` : `${activity.durationMinutes} min`}</p>
-                <p><strong>Reservas cierran:</strong> {activity.bookingCutoffHours} horas antes.</p>
+                <p><strong>Reservas cierran:</strong> {cutoffText(activity.bookingCutoffMinutes)}.</p>
             </div>
 
             {hasRequirements && <section className="activity-preview-requirements">

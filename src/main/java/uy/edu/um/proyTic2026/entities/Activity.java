@@ -84,7 +84,8 @@ public class Activity {
     private Integer durationMinutes;
 
     @Column(nullable = false)
-    private Integer bookingCutoffHours = 0;
+    // Hasta cuántos minutos antes del inicio se puede reservar. 0 = hasta la hora de inicio.
+    private Integer bookingCutoffMinutes = 0;
 
     @Column(length = 500)
     private String equipment;

@@ -15,7 +15,7 @@ public record ActivityResponse(
         String description, List<ActivityCategoryResponse> categories, LocalDate firstDate,
         ActivityRecurrence recurrence, LocalDate repeatUntil, List<LocalTime> startTimes,
         List<DayOfWeek> weekdays, List<LocalDateTime> upcomingOccurrences, int capacity, BigDecimal price,
-        int durationMinutes, int bookingCutoffHours, String equipment, Integer minimumAge,
+        int durationMinutes, int bookingCutoffMinutes, String equipment, Integer minimumAge,
         Integer maximumAge, Integer minimumHeightCm, Integer maximumHeightCm, String difficulty,
         String otherRequirements, double averageRating, int reviewCount, long recentReservationCount,
         Long providerId, List<ActivityPhotoResponse> photos
@@ -28,7 +28,7 @@ public record ActivityResponse(
                         java.util.Comparator.comparing(ActivityCategoryResponse::name, String.CASE_INSENSITIVE_ORDER)).toList(),
                 activity.getFirstDate(), activity.getRecurrence(), activity.getRepeatUntil(),
                 List.copyOf(activity.getStartTimes()), activity.getWeekdays().stream().sorted().toList(), occurrences,
-                activity.getCapacity(), activity.getPrice(), activity.getDurationMinutes(), activity.getBookingCutoffHours(),
+                activity.getCapacity(), activity.getPrice(), activity.getDurationMinutes(), activity.getBookingCutoffMinutes(),
                 activity.getEquipment(), activity.getMinimumAge(), activity.getMaximumAge(),
                 activity.getMinimumHeightCm(), activity.getMaximumHeightCm(), activity.getDifficulty(),
                 activity.getOtherRequirements(), averageRating, reviewCount, recentReservationCount,

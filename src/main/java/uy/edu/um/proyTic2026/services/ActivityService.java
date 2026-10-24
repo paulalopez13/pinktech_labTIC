@@ -170,7 +170,7 @@ public class ActivityService {
         LocalDateTime occurrence = request.activityStart();
         if (!isOccurrence(activity, occurrence)) throw new IllegalArgumentException("Ese horario no pertenece a la actividad.");
         if (!occurrence.isAfter(LocalDateTime.now())) throw new IllegalArgumentException("Ya no se puede reservar una fecha pasada.");
-        if (occurrence.minusHours(activity.getBookingCutoffHours()).isBefore(LocalDateTime.now())) {
+        if (occurrence.minusMinutes(activity.getBookingCutoffMinutes()).isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("El plazo para reservar esta fecha ya cerró.");
         }
         if (reservationRepository.existsByActivity_IdAndTourist_IdAndActivityStart(activityId, touristId, occurrence)) {
@@ -337,7 +337,7 @@ public class ActivityService {
         activity.setCapacity(request.capacity());
         activity.setPrice(request.price());
         activity.setDurationMinutes(request.durationMinutes());
-        activity.setBookingCutoffHours(request.bookingCutoffHours());
+        activity.setBookingCutoffMinutes(request.bookingCutoffMinutes());
         activity.setEquipment(blankToNull(request.equipment()));
         activity.setMinimumAge(request.minimumAge());
         activity.setMaximumAge(request.maximumAge());

@@ -90,7 +90,7 @@ public class DemoActivitiesInitializer {
             activity.setWeekdays(demo.recurrence() == ActivityRecurrence.WEEKLY || demo.recurrence() == ActivityRecurrence.BIWEEKLY || demo.recurrence() == ActivityRecurrence.SEASONAL
                     ? Set.of(activity.getFirstDate().getDayOfWeek()) : Set.of());
             activity.setCapacity(demo.capacity()); activity.setPrice(BigDecimal.valueOf(demo.price()));
-            activity.setDurationMinutes(demo.durationMinutes()); activity.setBookingCutoffHours(demo.bookingCutoffHours());
+            activity.setDurationMinutes(demo.durationMinutes()); activity.setBookingCutoffMinutes(demo.bookingCutoffHours() * 60);
             activity.setMinimumAge(demo.minimumAge() > 0 ? demo.minimumAge() : null);
             activity.setMinimumHeightCm(demo.minimumHeightCm()); activity.setDifficulty(demo.difficulty());
             activity.setEquipment(demo.equipment());
@@ -144,7 +144,7 @@ public class DemoActivitiesInitializer {
             if (!occursOn(activity, date)) continue;
             for (LocalTime time : times) {
                 LocalDateTime candidate = LocalDateTime.of(date, time);
-                if (candidate.isAfter(LocalDateTime.now().plusHours(activity.getBookingCutoffHours()))) return candidate;
+                if (candidate.isAfter(LocalDateTime.now().plusMinutes(activity.getBookingCutoffMinutes()))) return candidate;
             }
         }
         return null;
