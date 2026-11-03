@@ -15,10 +15,10 @@ public record ActivityResponse(
         String description, List<ActivityCategoryResponse> categories, LocalDate firstDate,
         ActivityRecurrence recurrence, LocalDate repeatUntil, List<LocalTime> startTimes,
         List<DayOfWeek> weekdays, List<LocalDateTime> upcomingOccurrences, int capacity, BigDecimal price,
-        int durationMinutes, int bookingCutoffMinutes, String equipment, Integer minimumAge,
+        int durationMinutes, int bookingCutoffMinutes, int cancellationCutoffMinutes, String equipment, Integer minimumAge,
         Integer maximumAge, Integer minimumHeightCm, Integer maximumHeightCm, String difficulty,
         String otherRequirements, double averageRating, int reviewCount, long recentReservationCount,
-        Long providerId, List<ActivityPhotoResponse> photos
+        Long providerId, List<ActivityPhotoResponse> photos, boolean acceptingReservations, boolean archived
 ) {
     public static ActivityResponse from(Activity activity, List<LocalDateTime> occurrences,
                                         double averageRating, int reviewCount, long recentReservationCount) {
@@ -28,12 +28,13 @@ public record ActivityResponse(
                         java.util.Comparator.comparing(ActivityCategoryResponse::name, String.CASE_INSENSITIVE_ORDER)).toList(),
                 activity.getFirstDate(), activity.getRecurrence(), activity.getRepeatUntil(),
                 List.copyOf(activity.getStartTimes()), activity.getWeekdays().stream().sorted().toList(), occurrences,
-                activity.getCapacity(), activity.getPrice(), activity.getDurationMinutes(), activity.getBookingCutoffMinutes(),
+                activity.getCapacity(), activity.getPrice(), activity.getDurationMinutes(), activity.getBookingCutoffMinutes(), activity.getCancellationCutoffMinutes() == null ? 1440 : activity.getCancellationCutoffMinutes(),
                 activity.getEquipment(), activity.getMinimumAge(), activity.getMaximumAge(),
                 activity.getMinimumHeightCm(), activity.getMaximumHeightCm(), activity.getDifficulty(),
                 activity.getOtherRequirements(), averageRating, reviewCount, recentReservationCount,
                 activity.getProvider().getId(),
-                activity.getPhotos().stream().map(photo -> ActivityPhotoResponse.from(activity.getId(), photo)).toList());
+                activity.getPhotos().stream().map(photo -> ActivityPhotoResponse.from(activity.getId(), photo)).toList(),
+                activity.isAcceptingReservations(), activity.isArchived());
     }
 
     private static String providerName(uy.edu.um.proyTic2026.entities.Provider provider) {

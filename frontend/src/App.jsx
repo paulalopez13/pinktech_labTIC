@@ -17,13 +17,16 @@ import AdministratorRegistrationPage from "./pages/AdministratorRegistrationPage
 import CategoryManagementPage from "./pages/CategoryManagementPage";
 import ActivityFormPage from "./pages/ActivityFormPage";
 import MyReservationsPage from "./pages/MyReservationsPage";
+import PaymentResultPage from "./pages/PaymentResultPage";
 import ProviderReservationsPage from "./pages/ProviderReservationsPage";
 import { getCurrentUser, logoutUser } from "./services/authService";
+import { getActivityById } from "./services/activityService";
 import BrandLogo from "./components/BrandLogo";
 
 function App() {
     const [selectedType, setSelectedType] = useState(() =>
-        new URLSearchParams(window.location.search).has("token") ? "resetPassword" : null);
+        new URLSearchParams(window.location.search).has("token") ? "resetPassword" :
+            new URLSearchParams(window.location.search).has("payment") ? "paymentResult" : null);
     const [registrationMessage, setRegistrationMessage] = useState("");
     const [loginNotice, setLoginNotice] = useState("");
     const [currentUser, setCurrentUser] = useState(() => {
@@ -35,6 +38,7 @@ function App() {
     });
     const [dashboardNotice, setDashboardNotice] = useState("");
     const [activityToEdit, setActivityToEdit] = useState(null);
+    const [activityFromReservation, setActivityFromReservation] = useState(null);
     const [activityReturn, setActivityReturn] = useState({ id: null, category: "" });
     const [favoritesViewKey, setFavoritesViewKey] = useState(0);
 
@@ -62,7 +66,7 @@ function App() {
     }, [selectedType, activityReturn.id, activityReturn.category]);
 
     function navigate(page, notice = "") {
-        if (page !== "resetPassword" && window.location.search.includes("token=")) {
+        if (page !== "resetPassword" && (window.location.search.includes("token=") || window.location.search.includes("payment="))) {
             window.history.replaceState({}, "", window.location.pathname);
         }
         setRegistrationMessage("");
@@ -97,6 +101,18 @@ function App() {
         navigate("activities");
     }
 
+    async function openReservedActivity(activityId) {
+        try {
+            const activity = await getActivityById(activityId);
+            setActivityFromReservation(activity);
+            setActivityReturn({ id: activityId, category: "" });
+            navigate("activities");
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
     async function handleLogout() {
         try { await logoutUser(); } catch { /* Se limpia la sesión local aunque el servidor no responda. */ }
         sessionStorage.removeItem("authenticatedUser");
@@ -124,6 +140,8 @@ function App() {
     } else if (selectedType === "resetPassword") {
         page = <ResetPasswordPage token={new URLSearchParams(window.location.search).get("token")}
             onBack={() => navigate("login")} onRequestLink={() => navigate("forgotPassword")} />;
+    } else if (selectedType === "paymentResult") {
+        page = <PaymentResultPage onViewReservations={() => navigate("reservations")} onHome={() => navigate(null)} />;
     } else if (selectedType === "profile") {
         page = <ProfilePage onBack={() => navigate(null)} onUpdated={updated => {
             const nextUser = { ...currentUser, username: updated.username, email: updated.email,
@@ -153,11 +171,12 @@ function App() {
     } else if (selectedType === "activities") {
         page = <ActivitiesPage onBack={() => navigate(null)} currentUser={currentUser}
             onLogin={loginForActivity} initialActivityId={activityReturn.id} initialCategory={activityReturn.category}
+            initialActivityData={activityFromReservation}
             onReserved={message => setDashboardNotice(message)}
             onViewReservations={() => navigate("reservations")}
             onAddActivity={() => navigate("addActivity")} />;
     } else if (selectedType === "reservations" && currentUser?.role === "TOURIST") {
-        page = <MyReservationsPage onBack={() => navigate(null)} />;
+        page = <MyReservationsPage onBack={() => navigate(null)} onOpenActivity={openReservedActivity} />;
     } else if (selectedType === "providerReservations" && currentUser?.role === "PROVIDER" && currentUser?.providerStatus === "APPROVED") {
         page = <ProviderReservationsPage onBack={() => navigate(null)} />;
     } else if (selectedType === "favorites" && currentUser?.role === "TOURIST") {
@@ -171,6 +190,11 @@ function App() {
             onEdit={activity => { setActivityToEdit(activity); navigate("editActivity"); }} />;
     } else if (currentUser) {
         page = <AccountMenuPage user={currentUser} onExplore={() => navigate("activities")}
+            onSelectActivity={activity => {
+                setActivityFromReservation(activity);
+                setActivityReturn({ id: activity.id, category: "" });
+                navigate("activities");
+            }}
             onReservations={() => navigate("reservations")}
             onMyActivities={() => navigate("myActivities")}
             onProviderReservations={() => navigate("providerReservations")}
@@ -180,7 +204,11 @@ function App() {
             onAddAdministrator={() => navigate("addAdministrator")}
             notice={dashboardNotice} />;
     } else {
-        page = <HomePage onExplore={() => navigate("activities")} />;
+        page = <HomePage onExplore={() => navigate("activities")} onSelectActivity={activity => {
+            setActivityFromReservation(activity);
+            setActivityReturn({ id: activity.id, category: "" });
+            navigate("activities");
+        }} />;
     }
 
     return (

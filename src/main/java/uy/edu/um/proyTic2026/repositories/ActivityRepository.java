@@ -13,6 +13,7 @@ import java.util.Optional;
 public interface ActivityRepository extends JpaRepository<Activity, Long> {
     List<Activity> findAllByOrderByNameAsc();
     List<Activity> findAllByProvider_IdOrderByNameAsc(Long providerId);
+    List<Activity> findAllByProvider_IdAndArchivedFalseOrderByNameAsc(Long providerId);
     List<Activity> findAllByCategories_Id(Long categoryId);
     boolean existsByNameIgnoreCase(String name);
 

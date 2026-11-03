@@ -5,6 +5,8 @@ const STATUS_LABELS = {
     APPROVED: "Confirmada",
     PENDING_PAYMENT: "Pago pendiente",
     REJECTED: "Pago rechazado",
+    WAITLISTED: "En lista de espera",
+    WAITLIST_OFFERED: "Lugar ofrecido",
 };
 
 function formatDate(value) {
@@ -36,6 +38,9 @@ export default function ProviderReservationsPage({ onBack }) {
     const [loading, setLoading] = useState(true);
     const [when, setWhen] = useState("upcoming");
     const [activityId, setActivityId] = useState("");
+    const [activityDate, setActivityDate] = useState("");
+    const [activityTime, setActivityTime] = useState("");
+    const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
     // Se toma la hora al abrir la página para separar próximas de pasadas.
     const [now] = useState(() => new Date());
 
@@ -50,9 +55,21 @@ export default function ProviderReservationsPage({ onBack }) {
     // Una opción por actividad que tenga reservas, para el filtro.
     const activities = [...new Map(reservations.map(item => [item.activityId, item.activityName])).entries()];
 
-    const filtered = reservations
+    const byActivityAndRange = reservations
         .filter(item => when === "upcoming" ? new Date(item.activityStart) >= now : new Date(item.activityStart) < now)
         .filter(item => activityId === "" || String(item.activityId) === activityId);
+    const dates = [...new Set(byActivityAndRange.map(item => item.activityStart.slice(0, 10)))].sort();
+    const datesInMonth = new Set(dates.filter(date => {
+        const parsed = new Date(`${date}T12:00:00`);
+        return parsed.getFullYear() === calendarMonth.getFullYear() && parsed.getMonth() === calendarMonth.getMonth();
+    }));
+    const calendarOffset = (new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1).getDay() + 6) % 7;
+    const calendarDays = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
+    const times = [...new Map(byActivityAndRange.filter(item => !activityDate || item.activityStart.startsWith(activityDate))
+        .map(item => [item.activityStart, item.activityStart])).keys()].sort();
+    const filtered = byActivityAndRange
+        .filter(item => !activityDate || item.activityStart.startsWith(activityDate))
+        .filter(item => !activityTime || item.activityStart === activityTime);
     // Las próximas van de la más cercana a la más lejana; las pasadas, de la más reciente a la más vieja.
     const groups = groupByOccurrence(when === "upcoming" ? filtered : [...filtered].reverse());
 
@@ -65,9 +82,22 @@ export default function ProviderReservationsPage({ onBack }) {
                     <button type="button" className={when === "upcoming" ? "selected" : ""} onClick={() => setWhen("upcoming")}>Próximas</button>
                     <button type="button" className={when === "past" ? "selected" : ""} onClick={() => setWhen("past")}>Pasadas</button>
                 </div>
-                <select value={activityId} onChange={event => setActivityId(event.target.value)} aria-label="Actividad">
+                <select value={activityId} onChange={event => { setActivityId(event.target.value); setActivityDate(""); setActivityTime(""); }} aria-label="Actividad">
                     <option value="">Todas las actividades</option>
                     {activities.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                </select>
+                <details className="provider-date-picker" aria-disabled={!activityId}>
+                    <summary>{!activityId ? "Elegí una actividad" : activityDate ? new Date(`${activityDate}T12:00:00`).toLocaleDateString("es-UY", { dateStyle: "medium" }) : "Elegir fecha"}</summary>
+                    {activityId && <div className="provider-date-calendar"><header><button type="button" aria-label="Mes anterior" onClick={() => setCalendarMonth(value => new Date(value.getFullYear(), value.getMonth() - 1, 1))}>‹</button><strong>{calendarMonth.toLocaleDateString("es-UY", { month: "long", year: "numeric" })}</strong><button type="button" aria-label="Mes siguiente" onClick={() => setCalendarMonth(value => new Date(value.getFullYear(), value.getMonth() + 1, 1))}>›</button></header>
+                        <div className="provider-date-grid">{["L", "M", "M", "J", "V", "S", "D"].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}
+                            {Array.from({ length: calendarOffset }, (_, index) => <i key={`blank-${index}`} />)}
+                            {Array.from({ length: calendarDays }, (_, index) => { const day = index + 1; const value = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`; const enabled = datesInMonth.has(value); return <button type="button" key={value} disabled={!enabled} className={`${enabled ? "has-reservations" : ""} ${activityDate === value ? "selected" : ""}`} onClick={() => { setActivityDate(value); setActivityTime(""); }}>{day}</button>; })}</div>
+                        <button type="button" className="provider-date-clear" onClick={() => { setActivityDate(""); setActivityTime(""); }}>Todas las fechas</button>
+                    </div>}
+                </details>
+                <select value={activityTime} disabled={!activityId || !activityDate} onChange={event => setActivityTime(event.target.value)} aria-label="Horario de la actividad">
+                    <option value="">Todos los horarios</option>
+                    {times.map(time => <option key={time} value={time}>{new Date(time).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })}</option>)}
                 </select>
             </div>}
             {loading ? <p>Cargando reservas…</p>

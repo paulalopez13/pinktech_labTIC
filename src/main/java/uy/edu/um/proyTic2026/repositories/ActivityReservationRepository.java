@@ -8,12 +8,13 @@ import uy.edu.um.proyTic2026.entities.ActivityReservation;
 import java.time.LocalDateTime;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 public interface ActivityReservationRepository extends JpaRepository<ActivityReservation, Long> {
     long countByActivity_IdAndActivityStart(Long activityId, LocalDateTime activityStart);
-    @Query("select coalesce(sum(coalesce(r.participantCount, 1)), 0) from ActivityReservation r where r.activity.id = :activityId and r.activityStart = :activityStart and (r.paymentStatus is null or r.paymentStatus = uy.edu.um.proyTic2026.entities.ReservationPaymentStatus.APPROVED or (r.paymentStatus = uy.edu.um.proyTic2026.entities.ReservationPaymentStatus.PENDING_PAYMENT and r.reservedAt >= :pendingAfter))")
+    @Query("select coalesce(sum(coalesce(r.participantCount, 1)), 0) from ActivityReservation r where r.activity.id = :activityId and r.activityStart = :activityStart and (r.paymentStatus is null or r.paymentStatus = uy.edu.um.proyTic2026.entities.ReservationPaymentStatus.APPROVED or ((r.paymentStatus = uy.edu.um.proyTic2026.entities.ReservationPaymentStatus.PENDING_PAYMENT or r.paymentStatus = uy.edu.um.proyTic2026.entities.ReservationPaymentStatus.PAYMENT_RETRY_PENDING or r.paymentStatus = uy.edu.um.proyTic2026.entities.ReservationPaymentStatus.WAITLIST_OFFERED) and r.paymentExpiresAt > :now))")
     long countBookedParticipants(@Param("activityId") Long activityId, @Param("activityStart") LocalDateTime activityStart,
-                                 @Param("pendingAfter") Instant pendingAfter);
+                                 @Param("now") Instant now);
     long countByActivity_IdAndReservedAtAfter(Long activityId, Instant reservedAfter);
     boolean existsByActivity_Id(Long activityId);
     boolean existsByActivity_IdAndTourist_IdAndActivityStart(Long activityId, Long touristId, LocalDateTime activityStart);
@@ -22,4 +23,7 @@ public interface ActivityReservationRepository extends JpaRepository<ActivityRes
     List<ActivityReservation> findAllByActivity_IdOrderByActivityStartAsc(Long activityId);
     // Todas las reservas de las actividades de un prestador, de la más próxima a la más lejana.
     List<ActivityReservation> findAllByActivity_Provider_IdOrderByActivityStartAsc(Long providerId);
+    List<ActivityReservation> findAllByPaymentStatusIn(List<uy.edu.um.proyTic2026.entities.ReservationPaymentStatus> statuses);
+    List<ActivityReservation> findAllByActivity_IdAndActivityStartAndPaymentStatusOrderByReservedAtAsc(Long activityId, LocalDateTime activityStart, uy.edu.um.proyTic2026.entities.ReservationPaymentStatus status);
+    Optional<ActivityReservation> findByPaymentOrderId(String paymentOrderId);
 }

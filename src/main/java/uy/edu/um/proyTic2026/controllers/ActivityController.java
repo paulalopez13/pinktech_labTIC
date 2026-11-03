@@ -88,8 +88,7 @@ public class ActivityController {
         Provider provider = provider(session, true);
         if (provider == null) return forbidden();
         try {
-            activityService.delete(provider.getId(), id);
-            return ResponseEntity.noContent().build();
+            return ResponseEntity.ok(activityService.delete(provider.getId(), id));
         } catch (IllegalArgumentException error) {
             return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
         }

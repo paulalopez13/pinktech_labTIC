@@ -7,13 +7,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import uy.edu.um.proyTic2026.dtos.GroupReservationRequest;
+import uy.edu.um.proyTic2026.dtos.RescheduleReservationRequest;
 import uy.edu.um.proyTic2026.dtos.ReviewRequest;
 import uy.edu.um.proyTic2026.entities.Tourist;
 import uy.edu.um.proyTic2026.repositories.UserRepository;
 import uy.edu.um.proyTic2026.services.ActivityService;
 
 import java.util.Map;
-import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api/reservations")
@@ -30,19 +30,96 @@ public class ReservationController {
         return ResponseEntity.ok(activityService.reservations(tourist.getId()));
     }
 
-    @PostMapping("/activities/{activityId}/sandbox-payment")
-    public ResponseEntity<?> sandboxPayment(@PathVariable Long activityId,
-                                             @Valid @RequestBody GroupReservationRequest request,
-                                             HttpSession session) {
+    @PostMapping("/activities/{activityId}/hold")
+    public ResponseEntity<?> createHold(@PathVariable Long activityId,
+                                        @Valid @RequestBody GroupReservationRequest request,
+                                        HttpSession session) {
         Tourist tourist = tourist(session);
         if (tourist == null) return forbidden("Iniciá sesión como turista para reservar actividades.");
         try {
-            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-                    "reservation", activityService.reserveSandbox(tourist.getId(), activityId, request),
-                    "status", "APPROVED",
-                    "total", activityService.get(activityId).price().multiply(BigDecimal.valueOf(request.participants().size())),
-                    "message", "Pago de prueba aprobado. No se realizó ningún cobro real."
-            ));
+            return ResponseEntity.status(HttpStatus.CREATED).body(activityService.reserveSandbox(tourist.getId(), activityId, request));
+        } catch (IllegalArgumentException error) {
+            return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
+        }
+    }
+
+    @PostMapping("/activities/{activityId}/waitlist")
+    public ResponseEntity<?> joinWaitlist(@PathVariable Long activityId,
+                                          @Valid @RequestBody GroupReservationRequest request, HttpSession session) {
+        Tourist tourist = tourist(session);
+        if (tourist == null) return forbidden("Iniciá sesión como turista para anotarte a la lista de espera.");
+        try {
+            return ResponseEntity.status(HttpStatus.CREATED).body(activityService.joinWaitlist(tourist.getId(), activityId, request));
+        } catch (IllegalArgumentException error) {
+            return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
+        }
+    }
+
+    @PostMapping("/{reservationId}/stripe-checkout")
+    public ResponseEntity<?> createStripeCheckout(@PathVariable Long reservationId, HttpSession session) {
+        Tourist tourist = tourist(session);
+        if (tourist == null) return forbidden("Iniciá sesión como turista para pagar una reserva.");
+        try {
+            return ResponseEntity.ok(activityService.createStripeCheckout(tourist.getId(), reservationId));
+        } catch (IllegalArgumentException error) {
+            return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
+        }
+    }
+
+    @GetMapping("/{reservationId}/stripe-checkout")
+    public ResponseEntity<?> verifyStripeCheckout(@PathVariable Long reservationId, @RequestParam String sessionId, HttpSession session) {
+        Tourist tourist = tourist(session);
+        if (tourist == null) return forbidden("Iniciá sesión como turista para consultar el pago.");
+        try {
+            return ResponseEntity.ok(activityService.verifyStripeCheckout(tourist.getId(), reservationId, sessionId));
+        } catch (IllegalArgumentException error) {
+            return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
+        }
+    }
+
+    @PostMapping("/{reservationId}/stripe-checkout/cancel")
+    public ResponseEntity<?> cancelStripeCheckout(@PathVariable Long reservationId, HttpSession session) {
+        Tourist tourist = tourist(session);
+        if (tourist == null) return forbidden("Iniciá sesión como turista para cancelar el intento de pago.");
+        try {
+            return ResponseEntity.ok(activityService.cancelStripeCheckout(tourist.getId(), reservationId));
+        } catch (IllegalArgumentException error) {
+            return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
+        }
+    }
+
+    @PostMapping("/{reservationId}/cancel")
+    public ResponseEntity<?> cancel(@PathVariable Long reservationId, HttpSession session) {
+        Tourist tourist = tourist(session);
+        if (tourist == null) return forbidden("Iniciá sesión como turista para cancelar una reserva.");
+        try {
+            return ResponseEntity.ok(activityService.cancelReservation(tourist.getId(), reservationId));
+        } catch (IllegalArgumentException error) {
+            return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
+        }
+    }
+
+    @PostMapping("/{reservationId}/waitlist-offer")
+    public ResponseEntity<?> answerWaitlistOffer(@PathVariable Long reservationId,
+                                                  @RequestBody Map<String, Boolean> request, HttpSession session) {
+        Tourist tourist = tourist(session);
+        if (tourist == null) return forbidden("Iniciá sesión como turista para responder a la oferta.");
+        try {
+            return ResponseEntity.ok(activityService.answerWaitlistOffer(tourist.getId(), reservationId,
+                    Boolean.TRUE.equals(request.get("accept"))));
+        } catch (IllegalArgumentException error) {
+            return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
+        }
+    }
+
+    @PutMapping("/{reservationId}/reschedule")
+    public ResponseEntity<?> reschedule(@PathVariable Long reservationId,
+                                        @Valid @RequestBody RescheduleReservationRequest request,
+                                        HttpSession session) {
+        Tourist tourist = tourist(session);
+        if (tourist == null) return forbidden("Iniciá sesión como turista para modificar una reserva.");
+        try {
+            return ResponseEntity.ok(activityService.rescheduleReservation(tourist.getId(), reservationId, request.activityStart()));
         } catch (IllegalArgumentException error) {
             return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
         }

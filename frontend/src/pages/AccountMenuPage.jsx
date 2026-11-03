@@ -1,7 +1,8 @@
 import UruguayPhotoCarousel from "../components/UruguayPhotoCarousel";
+import TopRatedActivities from "../components/TopRatedActivities";
 
 export default function AccountMenuPage({ user, onExplore, onReservations, onMyActivities, onProviderReservations,
-    onAddActivity, onApproveProviders, onEditCategories, onAddAdministrator, notice }) {
+    onAddActivity, onApproveProviders, onEditCategories, onAddAdministrator, onSelectActivity, notice }) {
     const roleDetails = {
         TOURIST: { heading: "Descubrí Uruguay", description: "Explorá actividades y experiencias en todo el país." },
         PROVIDER: { heading: "Panel de prestador", description: "Gestioná tus actividades y descubrí nuevas propuestas." },
@@ -70,6 +71,7 @@ export default function AccountMenuPage({ user, onExplore, onReservations, onMyA
                 </div>
                 <UruguayPhotoCarousel />
             </section>
+            <TopRatedActivities onExplore={onExplore} onSelectActivity={onSelectActivity} />
         </main>
     );
 }

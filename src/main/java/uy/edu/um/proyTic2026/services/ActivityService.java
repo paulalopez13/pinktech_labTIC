@@ -5,9 +5,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.scheduling.annotation.Scheduled;
 import uy.edu.um.proyTic2026.dtos.*;
 import uy.edu.um.proyTic2026.entities.*;
 import uy.edu.um.proyTic2026.repositories.*;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.util.StringUtils;
 import java.io.IOException;
@@ -24,17 +26,19 @@ public class ActivityService {
     private final ActivityCategoryRepository categoryRepository;
     private final ActivityReservationRepository reservationRepository;
     private final ActivityReviewRepository reviewRepository;
+    private final ActivityFavoriteRepository favoriteRepository;
     private final UserRepository userRepository;
     private final AccountEmailService accountEmailService;
+    private final StripeGatewayService stripeGateway;
 
     @Transactional(readOnly = true)
     public List<ActivityResponse> list() {
-        return activityRepository.findAllByOrderByNameAsc().stream().map(this::response).toList();
+        return activityRepository.findAllByOrderByNameAsc().stream().filter(activity -> !activity.isArchived()).map(this::response).toList();
     }
 
     @Transactional(readOnly = true)
     public List<ActivityResponse> listForProvider(Long providerId) {
-        return activityRepository.findAllByProvider_IdOrderByNameAsc(providerId).stream().map(this::response).toList();
+        return activityRepository.findAllByProvider_IdAndArchivedFalseOrderByNameAsc(providerId).stream().map(this::response).toList();
     }
 
     @Transactional
@@ -77,18 +81,45 @@ public class ActivityService {
     }
 
     @Transactional
-    public void delete(Long providerId, Long activityId) {
+    public Map<String, Boolean> delete(Long providerId, Long activityId) {
         Activity activity = ownedActivity(providerId, activityId);
-        if (reservationRepository.existsByActivity_Id(activityId)) {
-            throw new IllegalArgumentException("No se puede eliminar una actividad que ya tiene reservas.");
+        List<ActivityReservation> reservations = reservationRepository.findAllByActivity_IdOrderByActivityStartAsc(activityId);
+        boolean hasPendingPayment = reservations.stream().anyMatch(this::paymentIsPending);
+        if (reservations.isEmpty()) {
+            favoriteRepository.deleteAllByActivity_Id(activityId);
+            activityRepository.delete(activity);
+            return Map.of("retainedForReservations", false, "hasPendingPayment", false);
         }
-        activityRepository.delete(activity);
+        activity.setArchived(true);
+        activity.setAcceptingReservations(false);
+        if (!hasPendingPayment) {
+            activity.getPhotos().clear();
+            activity.getCategories().clear();
+            activity.getStartTimes().clear();
+            activity.getWeekdays().clear();
+            activity.setDescription("");
+            activity.setEquipment(null);
+            activity.setMinimumAge(null);
+            activity.setMaximumAge(null);
+            activity.setMinimumHeightCm(null);
+            activity.setMaximumHeightCm(null);
+            activity.setDifficulty(null);
+            activity.setOtherRequirements(null);
+            activity.setRepeatUntil(null);
+            activity.setCapacity(0);
+        }
+        activityRepository.save(activity);
+        return Map.of("retainedForReservations", true, "hasPendingPayment", hasPendingPayment);
     }
 
     @Transactional(readOnly = true)
     public ActivityResponse get(Long activityId) {
-        return response(activityRepository.findById(activityId)
-                .orElseThrow(() -> new IllegalArgumentException("No se encontró la actividad.")));
+        Activity activity = activityRepository.findById(activityId)
+                .orElseThrow(() -> new IllegalArgumentException("Actividad no disponible."));
+        if (activity.isArchived() && !hasPendingPayment(activityId)) {
+            throw new IllegalArgumentException("Actividad no disponible.");
+        }
+        return response(activity);
     }
 
     @Transactional(readOnly = true)
@@ -96,7 +127,7 @@ public class ActivityService {
         Activity activity = activityRepository.findById(activityId)
                 .orElseThrow(() -> new IllegalArgumentException("No se encontró la actividad."));
         if (!isOccurrence(activity, occurrence)) throw new IllegalArgumentException("Ese horario no pertenece a la actividad.");
-        return Math.max(0, activity.getCapacity() - (int) reservationRepository.countBookedParticipants(activityId, occurrence, Instant.now().minus(Duration.ofMinutes(15))));
+        return Math.max(0, activity.getCapacity() - (int) reservationRepository.countBookedParticipants(activityId, occurrence, Instant.now()));
     }
 
     @Transactional(readOnly = true)
@@ -167,6 +198,9 @@ public class ActivityService {
                 .map(Tourist.class::cast).orElseThrow(() -> new IllegalArgumentException("Solo los turistas pueden reservar."));
         Activity activity = activityRepository.findByIdForUpdate(activityId)
                 .orElseThrow(() -> new IllegalArgumentException("No se encontró la actividad."));
+        if (!activity.isAcceptingReservations() || activity.isArchived()) {
+            throw new IllegalArgumentException("Esta actividad ya no acepta nuevas reservas.");
+        }
         LocalDateTime occurrence = request.activityStart();
         if (!isOccurrence(activity, occurrence)) throw new IllegalArgumentException("Ese horario no pertenece a la actividad.");
         if (!occurrence.isAfter(LocalDateTime.now())) throw new IllegalArgumentException("Ya no se puede reservar una fecha pasada.");
@@ -177,7 +211,7 @@ public class ActivityService {
             throw new IllegalArgumentException("Ya tenés una reserva para ese horario.");
         }
         int count = request.participants().size();
-        long reserved = reservationRepository.countBookedParticipants(activityId, occurrence, Instant.now().minus(Duration.ofMinutes(15)));
+        long reserved = reservationRepository.countBookedParticipants(activityId, occurrence, Instant.now());
         if (reserved + count > activity.getCapacity()) throw new IllegalArgumentException("No quedan suficientes cupos para todas las personas.");
         validateParticipants(activity, request.participants());
 
@@ -189,8 +223,10 @@ public class ActivityService {
         reservation.setContactName(request.contactName().trim());
         reservation.setContactEmail(request.contactEmail().trim());
         reservation.setContactPhone(request.contactPhone().trim());
-        reservation.setPaymentStatus(ReservationPaymentStatus.APPROVED);
-        reservation.setPaymentOrderId("SANDBOX-" + UUID.randomUUID());
+        boolean free = activity.getPrice().signum() == 0;
+        reservation.setPaymentStatus(free ? ReservationPaymentStatus.APPROVED : ReservationPaymentStatus.PENDING_PAYMENT);
+        reservation.setPaymentExpiresAt(free ? null : Instant.now().plus(Duration.ofHours(2)));
+        reservation.setPaymentOrderId(null);
         for (ReservationParticipantRequest item : request.participants()) {
             ReservationParticipant participant = new ReservationParticipant();
             participant.setReservation(reservation);
@@ -203,9 +239,313 @@ public class ActivityService {
             reservation.getParticipants().add(participant);
         }
         ActivityReservation saved = reservationRepository.save(reservation);
-        BigDecimal total = activity.getPrice().multiply(BigDecimal.valueOf(count));
-        notifyReservationConfirmed(request.contactEmail().trim(), request.contactName().trim(), activity, occurrence, count, total);
+        if (free) notifyReservationConfirmed(reservation.getContactEmail(), reservation.getContactName(), activity,
+                occurrence, count, BigDecimal.ZERO);
         return ReservationResponse.from(saved, false);
+    }
+
+    @Transactional
+    public Map<String, Object> createStripeCheckout(Long touristId, Long reservationId) {
+        ActivityReservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró la reserva."));
+        if (!reservation.getTourist().getId().equals(touristId)) throw new IllegalArgumentException("Esta reserva no te pertenece.");
+        if (reservation.getPaymentStatus() != ReservationPaymentStatus.PENDING_PAYMENT
+                && reservation.getPaymentStatus() != ReservationPaymentStatus.PAYMENT_RETRY_PENDING)
+            throw new IllegalArgumentException("La reserva no está esperando un pago.");
+        Instant now = Instant.now();
+        if (reservation.getPaymentExpiresAt() == null || !reservation.getPaymentExpiresAt().isAfter(now)) {
+            throw new IllegalArgumentException("Expiró el tiempo de pago. La reserva venció.");
+        }
+        if (reservation.getPaymentOrderId() != null && reservation.getPaymentOrderId().startsWith("cs_")) {
+            JsonNode existing = stripeGateway.retrieveCheckout(reservation.getPaymentOrderId());
+            stripeGateway.validateCheckoutSession(reservation, existing, reservation.getPaymentOrderId(), false);
+            if ("paid".equals(existing.path("payment_status").asText())) {
+                completeStripePayment(reservation, existing);
+                return Map.of("paymentStatus", reservation.getPaymentStatus().name(), "url", "");
+            }
+            if ("open".equals(existing.path("status").asText()))
+            {
+                String checkoutUrl = existing.path("url").asText();
+                stripeGateway.validateCheckoutUrl(checkoutUrl);
+                return Map.of("paymentStatus", reservation.getPaymentStatus().name(), "url", checkoutUrl);
+            }
+            if ("complete".equals(existing.path("status").asText()))
+                throw new IllegalArgumentException("Stripe todavía está confirmando el pago. Revisá el estado en tus reservas antes de volver a intentarlo.");
+        }
+        StripeGatewayService.Checkout checkout = stripeGateway.createCheckout(reservation);
+        reservation.setPaymentOrderId(checkout.id());
+        return Map.of("paymentStatus", reservation.getPaymentStatus().name(), "url", checkout.url());
+    }
+
+    @Transactional
+    public ReservationResponse verifyStripeCheckout(Long touristId, Long reservationId, String sessionId) {
+        ActivityReservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró la reserva."));
+        if (!reservation.getTourist().getId().equals(touristId)) throw new IllegalArgumentException("Esta reserva no te pertenece.");
+        if (sessionId == null || !sessionId.equals(reservation.getPaymentOrderId()))
+            throw new IllegalArgumentException("La sesión de pago no corresponde a esta reserva.");
+        JsonNode session = stripeGateway.retrieveCheckout(sessionId);
+        stripeGateway.validateCheckoutSession(reservation, session, sessionId, false);
+        if ("paid".equals(session.path("payment_status").asText())) completeStripePayment(reservation, session);
+        else if ((reservation.getPaymentStatus() == ReservationPaymentStatus.PENDING_PAYMENT
+                || reservation.getPaymentStatus() == ReservationPaymentStatus.PAYMENT_RETRY_PENDING)
+                && (reservation.getPaymentExpiresAt() == null || !reservation.getPaymentExpiresAt().isAfter(Instant.now()))) {
+            reservation.setPaymentStatus(ReservationPaymentStatus.EXPIRED);
+            reservation.setPaymentExpiresAt(null);
+            stripeGateway.expireCheckout(sessionId);
+            offerAvailablePlaces(reservation.getActivity().getId(), reservation.getActivityStart(), Instant.now());
+        }
+        return ReservationResponse.from(reservation, false);
+    }
+
+    @Transactional
+    public Map<String, Object> cancelStripeCheckout(Long touristId, Long reservationId) {
+        ActivityReservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró la reserva."));
+        if (!reservation.getTourist().getId().equals(touristId)) throw new IllegalArgumentException("Esta reserva no te pertenece.");
+        if (reservation.getPaymentStatus() != ReservationPaymentStatus.PENDING_PAYMENT
+                && reservation.getPaymentStatus() != ReservationPaymentStatus.PAYMENT_RETRY_PENDING)
+            throw new IllegalArgumentException("La reserva ya no tiene un pago pendiente.");
+        String sessionId = reservation.getPaymentOrderId();
+        if (sessionId == null || !sessionId.startsWith("cs_"))
+            throw new IllegalArgumentException("No encontramos una sesión de pago para cancelar.");
+        JsonNode session = stripeGateway.retrieveCheckout(sessionId);
+        stripeGateway.validateCheckoutSession(reservation, session, sessionId, false);
+        if ("paid".equals(session.path("payment_status").asText())) {
+            completeStripePayment(reservation, session);
+            return Map.of("cancelled", false, "paymentStatus", reservation.getPaymentStatus().name());
+        }
+        if ("open".equals(session.path("status").asText())) {
+            stripeGateway.expireCheckout(sessionId);
+            session = stripeGateway.retrieveCheckout(sessionId);
+            stripeGateway.validateCheckoutSession(reservation, session, sessionId, false);
+            if ("paid".equals(session.path("payment_status").asText())) {
+                completeStripePayment(reservation, session);
+                return Map.of("cancelled", false, "paymentStatus", reservation.getPaymentStatus().name());
+            }
+        }
+        if (!"expired".equals(session.path("status").asText()))
+            throw new IllegalArgumentException("Stripe todavía no confirmó la cancelación del pago. Revisá tus reservas antes de volver a intentarlo.");
+        if (reservation.getPaymentExpiresAt() == null || !reservation.getPaymentExpiresAt().isAfter(Instant.now())) {
+            reservation.setPaymentStatus(ReservationPaymentStatus.EXPIRED);
+            reservation.setPaymentExpiresAt(null);
+            offerAvailablePlaces(reservation.getActivity().getId(), reservation.getActivityStart(), Instant.now());
+        }
+        return Map.of("cancelled", true, "paymentStatus", reservation.getPaymentStatus().name());
+    }
+
+    private void completeStripePayment(ActivityReservation reservation, JsonNode session) {
+        stripeGateway.validateCheckoutSession(reservation, session, reservation.getPaymentOrderId(), true);
+        if (reservation.getPaymentStatus() == ReservationPaymentStatus.APPROVED) return;
+        Instant now = Instant.now();
+        if ((reservation.getPaymentStatus() != ReservationPaymentStatus.PENDING_PAYMENT
+                && reservation.getPaymentStatus() != ReservationPaymentStatus.PAYMENT_RETRY_PENDING)
+                || reservation.getPaymentExpiresAt() == null || !reservation.getPaymentExpiresAt().isAfter(now)) {
+            String paymentIntent = session.path("payment_intent").asText("");
+            stripeGateway.refundPaymentIntent(paymentIntent, reservation.getId());
+            reservation.setPaymentStatus(ReservationPaymentStatus.EXPIRED);
+            reservation.setPaymentExpiresAt(null);
+            offerAvailablePlaces(reservation.getActivity().getId(), reservation.getActivityStart(), now);
+            return;
+        }
+        reservation.setPaymentStatus(ReservationPaymentStatus.APPROVED);
+        reservation.setPaymentExpiresAt(null);
+        BigDecimal total = reservation.getActivity().getPrice().multiply(BigDecimal.valueOf(reservation.getParticipantCount()));
+        notifyReservationConfirmed(reservation.getContactEmail(), reservation.getContactName(), reservation.getActivity(),
+                reservation.getActivityStart(), reservation.getParticipantCount(), total);
+    }
+
+    @Transactional
+    public void handleStripeWebhook(String eventType, JsonNode object) {
+        if ("checkout.session.completed".equals(eventType) || "checkout.session.async_payment_succeeded".equals(eventType)) {
+            String sessionId = object.path("id").asText();
+            reservationRepository.findByPaymentOrderId(sessionId).ifPresent(reservation -> {
+                if (reservation.getPaymentOrderId().equals(sessionId)
+                        && reservation.getId().toString().equals(object.path("metadata").path("reservation_id").asText())
+                        && "paid".equals(object.path("payment_status").asText())) completeStripePayment(reservation, object);
+            });
+        } else if ("checkout.session.expired".equals(eventType)) {
+            reservationRepository.findByPaymentOrderId(object.path("id").asText()).ifPresent(reservation -> {
+                stripeGateway.validateCheckoutSession(reservation, object, reservation.getPaymentOrderId(), false);
+                if ("expired".equals(object.path("status").asText())
+                        && !"paid".equals(object.path("payment_status").asText())
+                        && (reservation.getPaymentStatus() == ReservationPaymentStatus.PENDING_PAYMENT
+                        || reservation.getPaymentStatus() == ReservationPaymentStatus.PAYMENT_RETRY_PENDING)
+                        && (reservation.getPaymentExpiresAt() == null || !reservation.getPaymentExpiresAt().isAfter(Instant.now()))) {
+                    reservation.setPaymentStatus(ReservationPaymentStatus.EXPIRED);
+                    reservation.setPaymentExpiresAt(null);
+                    offerAvailablePlaces(reservation.getActivity().getId(), reservation.getActivityStart(), Instant.now());
+                }
+            });
+        } else if ("checkout.session.async_payment_failed".equals(eventType)) {
+            reservationRepository.findByPaymentOrderId(object.path("id").asText()).ifPresent(reservation -> {
+                stripeGateway.validateCheckoutSession(reservation, object, reservation.getPaymentOrderId(), false);
+                if (!"paid".equals(object.path("payment_status").asText())) markPaymentRetryPending(reservation);
+            });
+        } else if ("payment_intent.payment_failed".equals(eventType)) {
+            String id = object.path("metadata").path("reservation_id").asText();
+            try {
+                reservationRepository.findById(Long.parseLong(id)).ifPresent(reservation -> {
+                    if (reservation.getPaymentStatus() == ReservationPaymentStatus.PENDING_PAYMENT
+                            && reservation.getPaymentExpiresAt() != null
+                            && reservation.getPaymentExpiresAt().isAfter(Instant.now())
+                            && reservation.getPaymentOrderId() != null
+                            && reservation.getPaymentOrderId().startsWith("cs_")) {
+                        JsonNode session = stripeGateway.retrieveCheckout(reservation.getPaymentOrderId());
+                        stripeGateway.validateCheckoutSession(reservation, session, reservation.getPaymentOrderId(), false);
+                        if (object.path("id").asText().equals(session.path("payment_intent").asText()))
+                            markPaymentRetryPending(reservation);
+                    }
+                });
+            } catch (NumberFormatException ignored) { }
+        }
+    }
+
+    private void markPaymentRetryPending(ActivityReservation reservation) {
+        if (reservation.getPaymentStatus() != ReservationPaymentStatus.PENDING_PAYMENT
+                || reservation.getPaymentExpiresAt() == null
+                || !reservation.getPaymentExpiresAt().isAfter(Instant.now())) return;
+        reservation.setPaymentStatus(ReservationPaymentStatus.PAYMENT_RETRY_PENDING);
+        reservation.setPaymentExpiresAt(Instant.now().plus(Duration.ofHours(2)));
+    }
+
+    @Transactional
+    public ReservationResponse joinWaitlist(Long touristId, Long activityId, GroupReservationRequest request) {
+        Tourist tourist = userRepository.findById(touristId).filter(Tourist.class::isInstance)
+                .map(Tourist.class::cast).orElseThrow(() -> new IllegalArgumentException("Solo los turistas pueden anotarse."));
+        Activity activity = activityRepository.findByIdForUpdate(activityId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró la actividad."));
+        LocalDateTime occurrence = request.activityStart();
+        if (!activity.isAcceptingReservations() || activity.isArchived()) throw new IllegalArgumentException("Esta actividad ya no acepta reservas.");
+        if (!isOccurrence(activity, occurrence) || !occurrence.isAfter(LocalDateTime.now())) throw new IllegalArgumentException("Ese horario no está disponible.");
+        if (occurrence.minusMinutes(activity.getBookingCutoffMinutes()).isBefore(LocalDateTime.now())) throw new IllegalArgumentException("El plazo para anotarse ya cerró.");
+        if (reservationRepository.existsByActivity_IdAndTourist_IdAndActivityStart(activityId, touristId, occurrence))
+            throw new IllegalArgumentException("Ya tenés una reserva o solicitud para ese horario.");
+        int count = request.participants().size();
+        long available = activity.getCapacity() - reservationRepository.countBookedParticipants(activityId, occurrence, Instant.now());
+        if (available >= count) throw new IllegalArgumentException("Se liberaron cupos. Volvé y elegí ese horario para reservar directamente.");
+        validateParticipants(activity, request.participants());
+        ActivityReservation entry = createReservationData(tourist, activity, request);
+        entry.setPaymentStatus(ReservationPaymentStatus.WAITLISTED);
+        entry.setPaymentExpiresAt(null);
+        return ReservationResponse.from(reservationRepository.save(entry), false);
+    }
+
+    private ActivityReservation createReservationData(Tourist tourist, Activity activity, GroupReservationRequest request) {
+        ActivityReservation reservation = new ActivityReservation();
+        reservation.setActivity(activity);
+        reservation.setTourist(tourist);
+        reservation.setActivityStart(request.activityStart());
+        reservation.setParticipantCount(request.participants().size());
+        reservation.setContactName(request.contactName().trim());
+        reservation.setContactEmail(request.contactEmail().trim());
+        reservation.setContactPhone(request.contactPhone().trim());
+        for (ReservationParticipantRequest item : request.participants()) {
+            ReservationParticipant participant = new ReservationParticipant();
+            participant.setReservation(reservation);
+            participant.setFullName(item.fullName().trim());
+            participant.setDocumentType(item.documentType());
+            participant.setDocumentNumber(item.documentNumber().trim().toUpperCase(Locale.ROOT));
+            participant.setAge(item.age());
+            participant.setHeightCm(item.heightCm());
+            participant.setLevel(item.level() == null || item.level().isBlank() ? null : item.level());
+            reservation.getParticipants().add(participant);
+        }
+        return reservation;
+    }
+
+    @Transactional
+    public ReservationResponse answerWaitlistOffer(Long touristId, Long reservationId, boolean accept) {
+        ActivityReservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró la solicitud."));
+        if (!reservation.getTourist().getId().equals(touristId)) throw new IllegalArgumentException("Esta solicitud no te pertenece.");
+        if (reservation.getPaymentStatus() != ReservationPaymentStatus.WAITLIST_OFFERED)
+            throw new IllegalArgumentException("Esta oferta ya no está disponible.");
+        Instant now = Instant.now();
+        if (reservation.getPaymentExpiresAt() == null || !reservation.getPaymentExpiresAt().isAfter(now)) {
+            reservation.setPaymentStatus(ReservationPaymentStatus.CANCELLED);
+            reservation.setPaymentExpiresAt(null);
+            offerAvailablePlaces(reservation.getActivity().getId(), reservation.getActivityStart(), now);
+            return ReservationResponse.from(reservation, false);
+        }
+        if (!accept) {
+            reservation.setPaymentStatus(ReservationPaymentStatus.CANCELLED);
+            reservation.setPaymentExpiresAt(null);
+            offerAvailablePlaces(reservation.getActivity().getId(), reservation.getActivityStart(), now);
+            return ReservationResponse.from(reservation, false);
+        }
+        reservation.setPaymentStatus(ReservationPaymentStatus.PENDING_PAYMENT);
+        reservation.setPaymentExpiresAt(now.plus(Duration.ofHours(2)));
+        return ReservationResponse.from(reservation, false);
+    }
+
+    @Scheduled(fixedDelay = 60000)
+    @Transactional
+    public void processWaitlists() {
+        Instant now = Instant.now();
+        List<ActivityReservation> watched = reservationRepository.findAllByPaymentStatusIn(List.of(
+                ReservationPaymentStatus.WAITLIST_OFFERED, ReservationPaymentStatus.WAITLISTED,
+                ReservationPaymentStatus.PENDING_PAYMENT, ReservationPaymentStatus.PAYMENT_RETRY_PENDING));
+        for (ActivityReservation reservation : watched) {
+            if (reservation.getPaymentStatus() == ReservationPaymentStatus.WAITLIST_OFFERED) {
+                if (reservation.getPaymentExpiresAt() == null || !reservation.getPaymentExpiresAt().isAfter(now)) {
+                    reservation.setPaymentStatus(ReservationPaymentStatus.CANCELLED);
+                    reservation.setPaymentExpiresAt(null);
+                } else if (!reservation.isWaitlistReminderSent() && reservation.getWaitlistOfferedAt() != null
+                        && !reservation.getWaitlistOfferedAt().plus(Duration.ofHours(22)).isAfter(now)) {
+                    reservation.setWaitlistReminderSent(true);
+                    accountEmailService.waitlistOfferReminder(reservation.getContactEmail(), reservation.getContactName(), reservation.getActivity().getName());
+                }
+            } else if ((reservation.getPaymentStatus() == ReservationPaymentStatus.PENDING_PAYMENT
+                    || reservation.getPaymentStatus() == ReservationPaymentStatus.PAYMENT_RETRY_PENDING)
+                    && reservation.getPaymentExpiresAt() != null && !reservation.getPaymentExpiresAt().isAfter(now)) {
+                stripeGateway.expireCheckout(reservation.getPaymentOrderId());
+                reservation.setPaymentStatus(ReservationPaymentStatus.EXPIRED);
+                reservation.setPaymentExpiresAt(null);
+            }
+        }
+        Map<String, ActivityReservation> slots = new LinkedHashMap<>();
+        watched.stream().filter(item -> item.getPaymentStatus() == ReservationPaymentStatus.WAITLISTED)
+                .forEach(item -> slots.putIfAbsent(item.getActivity().getId() + "|" + item.getActivityStart(), item));
+        for (ActivityReservation item : slots.values()) offerAvailablePlaces(item.getActivity().getId(), item.getActivityStart(), now);
+    }
+
+    private void offerAvailablePlaces(Long activityId, LocalDateTime occurrence, Instant now) {
+        Activity activity = activityRepository.findByIdForUpdate(activityId).orElse(null);
+        if (activity == null) return;
+        long free = activity.getCapacity() - reservationRepository.countBookedParticipants(activityId, occurrence, now);
+        if (free <= 0) return;
+        List<ActivityReservation> queue = reservationRepository.findAllByActivity_IdAndActivityStartAndPaymentStatusOrderByReservedAtAsc(
+                activityId, occurrence, ReservationPaymentStatus.WAITLISTED);
+        for (ActivityReservation waiting : queue) {
+            if (waiting.getParticipantCount() > free) continue;
+            waiting.setPaymentStatus(ReservationPaymentStatus.WAITLIST_OFFERED);
+            waiting.setWaitlistOfferedAt(now);
+            waiting.setWaitlistReminderSent(false);
+            waiting.setPaymentExpiresAt(now.plus(Duration.ofHours(24)));
+            free -= waiting.getParticipantCount();
+            accountEmailService.waitlistOffer(waiting.getContactEmail(), waiting.getContactName(), activity.getName(), occurrence, waiting.getParticipantCount());
+            if (free == 0) break;
+        }
+    }
+
+    @Transactional
+    public ReservationResponse cancelReservation(Long touristId, Long reservationId) {
+        ActivityReservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró la reserva."));
+        if (!reservation.getTourist().getId().equals(touristId)) throw new IllegalArgumentException("Esta reserva no te pertenece.");
+        if (reservation.getPaymentStatus() == ReservationPaymentStatus.CANCELLED
+                || reservation.getPaymentStatus() == ReservationPaymentStatus.EXPIRED)
+            throw new IllegalArgumentException("La reserva ya está cancelada o vencida.");
+        if (reservation.getPaymentStatus() != ReservationPaymentStatus.WAITLISTED
+                && reservation.getPaymentStatus() != ReservationPaymentStatus.WAITLIST_OFFERED
+                && reservation.getActivityStart().minusMinutes(Optional.ofNullable(reservation.getActivity().getCancellationCutoffMinutes()).orElse(1440)).isBefore(LocalDateTime.now()))
+            throw new IllegalArgumentException("El plazo para cancelar esta reserva ya cerró.");
+        stripeGateway.expireCheckout(reservation.getPaymentOrderId());
+        reservation.setPaymentStatus(ReservationPaymentStatus.CANCELLED);
+        reservation.setPaymentExpiresAt(null);
+        offerAvailablePlaces(reservation.getActivity().getId(), reservation.getActivityStart(), Instant.now());
+        return ReservationResponse.from(reservation, false);
     }
 
     private void notifyReservationConfirmed(String email, String contactName, Activity activity,
@@ -249,11 +589,41 @@ public class ActivityService {
         return switch (value) { case "Principiante" -> 1; case "Intermedio" -> 2; case "Avanzado" -> 3; default -> 0; };
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<ReservationResponse> reservations(Long touristId) {
-        return reservationRepository.findAllByTourist_IdOrderByActivityStartDesc(touristId).stream()
+        Instant now = Instant.now();
+        List<ActivityReservation> reservations = reservationRepository.findAllByTourist_IdOrderByActivityStartDesc(touristId);
+        reservations.stream().filter(reservation -> (reservation.getPaymentStatus() == ReservationPaymentStatus.PENDING_PAYMENT
+                        || reservation.getPaymentStatus() == ReservationPaymentStatus.PAYMENT_RETRY_PENDING)
+                        && reservation.getPaymentExpiresAt() != null && !reservation.getPaymentExpiresAt().isAfter(now))
+                .forEach(reservation -> { stripeGateway.expireCheckout(reservation.getPaymentOrderId()); reservation.setPaymentStatus(ReservationPaymentStatus.EXPIRED); reservation.setPaymentExpiresAt(null); });
+        return reservations.stream()
                 .map(reservation -> ReservationResponse.from(reservation,
                         reviewRepository.findByReservation_Id(reservation.getId()).isPresent())).toList();
+    }
+
+    @Transactional
+    public ReservationResponse rescheduleReservation(Long touristId, Long reservationId, LocalDateTime newStart) {
+        ActivityReservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró la reserva."));
+        if (!reservation.getTourist().getId().equals(touristId)) throw new IllegalArgumentException("Esta reserva no te pertenece.");
+        if (reservation.getPaymentStatus() != ReservationPaymentStatus.APPROVED)
+            throw new IllegalArgumentException("Solo podés modificar una reserva confirmada.");
+        if (!newStart.isAfter(LocalDateTime.now())) throw new IllegalArgumentException("Elegí una fecha futura.");
+        Activity activity = activityRepository.findByIdForUpdate(reservation.getActivity().getId())
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró la actividad."));
+        if (!isOccurrence(activity, newStart)) throw new IllegalArgumentException("Ese horario no pertenece a la actividad.");
+        if (newStart.minusMinutes(activity.getBookingCutoffMinutes()).isBefore(LocalDateTime.now()))
+            throw new IllegalArgumentException("El plazo para cambiar esta reserva ya cerró.");
+        if (!newStart.equals(reservation.getActivityStart())) {
+            long reserved = reservationRepository.countBookedParticipants(activity.getId(), newStart, Instant.now());
+            if (reserved + reservation.getParticipantCount() > activity.getCapacity())
+                throw new IllegalArgumentException("No quedan suficientes cupos en ese horario.");
+            if (reservationRepository.existsByActivity_IdAndTourist_IdAndActivityStart(activity.getId(), touristId, newStart))
+                throw new IllegalArgumentException("Ya tenés una reserva para ese horario.");
+            reservation.setActivityStart(newStart);
+        }
+        return ReservationResponse.from(reservation, reviewRepository.findByReservation_Id(reservationId).isPresent());
     }
 
     @Transactional
@@ -267,8 +637,14 @@ public class ActivityService {
                 .isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("Podés dejar tu comentario después de que termine la actividad.");
         }
+        if (reservation.getPaymentStatus() != ReservationPaymentStatus.APPROVED) {
+            throw new IllegalArgumentException("Solo podés opinar sobre una reserva confirmada y pagada.");
+        }
         if (reviewRepository.findByReservation_Id(reservationId).isPresent()) {
             throw new IllegalArgumentException("Ya dejaste una opinión para esta reserva.");
+        }
+        if (request.rating().remainder(new BigDecimal("0.5")).compareTo(BigDecimal.ZERO) != 0) {
+            throw new IllegalArgumentException("La puntuación debe avanzar de media estrella en media estrella.");
         }
         ActivityReview review = new ActivityReview();
         review.setReservation(reservation);
@@ -283,10 +659,24 @@ public class ActivityService {
         if (!activity.getProvider().getId().equals(providerId)) {
             throw new IllegalArgumentException("No tenés permiso para modificar esta actividad.");
         }
+        if (activity.isArchived()) throw new IllegalArgumentException("Esta actividad ya fue eliminada.");
         return activity;
     }
 
+    private boolean hasPendingPayment(Long activityId) {
+        return reservationRepository.findAllByActivity_IdOrderByActivityStartAsc(activityId).stream().anyMatch(this::paymentIsPending);
+    }
+
+    private boolean paymentIsPending(ActivityReservation reservation) {
+        ReservationPaymentStatus status = reservation.getPaymentStatus();
+        return (status == ReservationPaymentStatus.PENDING_PAYMENT || status == ReservationPaymentStatus.PAYMENT_RETRY_PENDING)
+                && (reservation.getPaymentExpiresAt() == null || reservation.getPaymentExpiresAt().isAfter(Instant.now()));
+    }
+
     private void validate(ActivityRequest request) {
+        if (request.cancellationCutoffMinutes() <= request.bookingCutoffMinutes()) {
+            throw new IllegalArgumentException("La fecha límite de cancelación debe ser anterior al cierre de reservas.");
+        }
         if (request.startTimes().size() > 8 || new HashSet<>(request.startTimes()).size() != request.startTimes().size()) {
             throw new IllegalArgumentException("Ingresá entre 1 y 8 horarios distintos por día.");
         }
@@ -338,6 +728,7 @@ public class ActivityService {
         activity.setPrice(request.price());
         activity.setDurationMinutes(request.durationMinutes());
         activity.setBookingCutoffMinutes(request.bookingCutoffMinutes());
+        activity.setCancellationCutoffMinutes(request.cancellationCutoffMinutes());
         activity.setEquipment(blankToNull(request.equipment()));
         activity.setMinimumAge(request.minimumAge());
         activity.setMaximumAge(request.maximumAge());
@@ -351,23 +742,25 @@ public class ActivityService {
 
     private ActivityResponse response(Activity activity) {
         List<ActivityReview> reviews = reviewRepository.findAllByReservation_Activity_IdOrderByCreatedAtDesc(activity.getId());
-        double average = reviews.isEmpty() ? 0 : reviews.stream().mapToInt(ActivityReview::getRating).average().orElse(0);
+        double average = reviews.isEmpty() ? 0 : reviews.stream().mapToDouble(review -> review.getRating().doubleValue()).average().orElse(0);
         long recentReservations = reservationRepository.countByActivity_IdAndReservedAtAfter(activity.getId(), Instant.now().minus(30, ChronoUnit.DAYS));
         return ActivityResponse.from(activity, upcoming(activity), average, reviews.size(), recentReservations);
     }
 
     private List<LocalDateTime> upcoming(Activity activity) {
+        if (activity.isArchived() || !activity.isAcceptingReservations()) return List.of();
         LocalDate today = LocalDate.now();
         LocalDate last = activity.getRepeatUntil() == null ? today.plusDays(90)
                 : activity.getRepeatUntil().isBefore(today.plusDays(90)) ? activity.getRepeatUntil() : today.plusDays(90);
         LocalDate begin = activity.getFirstDate().isAfter(today) ? activity.getFirstDate() : today;
         if (activity.getRecurrence() == ActivityRecurrence.ONCE) last = activity.getFirstDate();
         List<LocalDateTime> result = new ArrayList<>();
+        LocalDateTime bookableAfter = LocalDateTime.now().plusMinutes(activity.getBookingCutoffMinutes());
         for (LocalDate date = begin; !date.isAfter(last) && result.size() < 12; date = date.plusDays(1)) {
             if (occursOn(activity, date)) {
                 for (LocalTime time : activity.getStartTimes()) {
                     LocalDateTime occurrence = date.atTime(time);
-                    if (occurrence.isAfter(LocalDateTime.now())) result.add(occurrence);
+                    if (occurrence.isAfter(bookableAfter)) result.add(occurrence);
                     if (result.size() >= 12) break;
                 }
             }

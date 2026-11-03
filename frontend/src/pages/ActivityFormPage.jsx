@@ -28,23 +28,38 @@ function dayAfter(value) {
     return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
 }
 
+function cutoffParts(minutes) {
+    const value = Number(minutes) || 0;
+    if (value % 1440 === 0) return { value: String(value / 1440), unit: "days" };
+    if (value % 60 === 0) return { value: String(value / 60), unit: "hours" };
+    return { value: String(value), unit: "minutes" };
+}
+
+function cutoffMinutes(value, unit) {
+    return Number(value || 0) * ({ minutes: 1, hours: 60, days: 1440 }[unit] || 1);
+}
+
 function blankForm() {
     return {
         name: "", department: "", city: "", location: "", description: "", categoryIds: [],
         firstDate: localToday(), recurrence: "ONCE", repeatUntil: "", startTimes: ["10:00"], weekdays: [],
-        capacity: "10", price: "", durationMinutes: "60", bookingCutoffMinutes: "0", equipment: "",
+        capacity: "10", price: "", durationMinutes: "60", bookingCutoffValue: "1", bookingCutoffUnit: "days",
+        cancellationCutoffValue: "2", cancellationCutoffUnit: "days", equipment: "",
         minimumAge: "", maximumAge: "", minimumHeightCm: "", maximumHeightCm: "",
         difficulty: "", otherRequirements: "",
     };
 }
 
 function formFromActivity(activity) {
+    const bookingCutoff = cutoffParts(activity.bookingCutoffMinutes);
+    const cancellationCutoff = cutoffParts(activity.cancellationCutoffMinutes ?? 1440);
     return { ...blankForm(), ...activity, categoryIds: activity.categories.map(category => category.id),
         firstDate: activity.firstDate, repeatUntil: activity.repeatUntil || "",
         startTimes: activity.startTimes, weekdays: activity.weekdays,
         capacity: String(activity.capacity), durationMinutes: String(activity.durationMinutes),
         price: activity.price == null ? "" : String(activity.price),
-        bookingCutoffMinutes: String(activity.bookingCutoffMinutes),
+        bookingCutoffValue: bookingCutoff.value, bookingCutoffUnit: bookingCutoff.unit,
+        cancellationCutoffValue: cancellationCutoff.value, cancellationCutoffUnit: cancellationCutoff.unit,
         minimumAge: activity.minimumAge == null ? "" : String(activity.minimumAge),
         maximumAge: activity.maximumAge == null ? "" : String(activity.maximumAge),
         minimumHeightCm: activity.minimumHeightCm == null ? "" : String(activity.minimumHeightCm),
@@ -136,6 +151,10 @@ export default function ActivityFormPage({ activity, onBack, onSaved }) {
         if (step === 3 && form.maximumHeightCm && form.minimumHeightCm && Number(form.maximumHeightCm) < Number(form.minimumHeightCm)) {
             setError("La altura máxima debe ser mayor o igual a la mínima."); return;
         }
+        if (step === formSteps.length - 1 && cutoffMinutes(form.cancellationCutoffValue, form.cancellationCutoffUnit)
+            <= cutoffMinutes(form.bookingCutoffValue, form.bookingCutoffUnit)) {
+            setError("La fecha límite de cancelación debe ser anterior al cierre de reservas."); return;
+        }
         if (step < formSteps.length - 1) { setStep(current => current + 1); return; }
         setIsSaving(true);
         const request = {
@@ -148,7 +167,8 @@ export default function ActivityFormPage({ activity, onBack, onSaved }) {
             weekdays: ["WEEKLY", "BIWEEKLY", "SEASONAL"].includes(form.recurrence) ? form.weekdays : [],
             capacity: Number(form.capacity), durationMinutes: Number(form.durationMinutes),
             price: Number(form.price),
-            bookingCutoffMinutes: Number(form.bookingCutoffMinutes),
+            bookingCutoffMinutes: cutoffMinutes(form.bookingCutoffValue, form.bookingCutoffUnit),
+            cancellationCutoffMinutes: cutoffMinutes(form.cancellationCutoffValue, form.cancellationCutoffUnit),
             equipment: form.equipment,
             minimumAge: form.minimumAge ? Number(form.minimumAge) : null,
             maximumAge: form.maximumAge ? Number(form.maximumAge) : null,
@@ -291,10 +311,15 @@ export default function ActivityFormPage({ activity, onBack, onSaved }) {
                                 <input type="number" min="0" max="99999999.99" step="0.01" value={form.price}
                                     onChange={event => change("price", event.target.value)} placeholder="0 si es gratis" required />
                             </label>
-                            <label className="form-field">Cerrar reservas (minutos antes)
-                                <input type="number" min="0" max="43200" value={form.bookingCutoffMinutes}
-                                    onChange={event => change("bookingCutoffMinutes", event.target.value)} required />
-                                <small>0 = se puede reservar hasta la hora de inicio. Reservas cierran {cutoffText(form.bookingCutoffMinutes)}.</small>
+                            <label className="form-field">Cierre de reservas
+                                <div className="cutoff-input-group"><input aria-label="Tiempo de cierre de reservas" type="number" min="0" max="43200" value={form.bookingCutoffValue}
+                                    onChange={event => change("bookingCutoffValue", event.target.value)} required />
+                                    <select aria-label="Unidad para el cierre de reservas" value={form.bookingCutoffUnit} onChange={event => change("bookingCutoffUnit", event.target.value)}><option value="minutes">min</option><option value="hours">horas</option><option value="days">días</option></select></div>
+                            </label>
+                            <label className="form-field">Fecha límite de cancelación
+                                <div className="cutoff-input-group"><input aria-label="Tiempo límite para cancelar" type="number" min="1" max="43200" value={form.cancellationCutoffValue}
+                                    onChange={event => change("cancellationCutoffValue", event.target.value)} required />
+                                    <select aria-label="Unidad de la fecha límite de cancelación" value={form.cancellationCutoffUnit} onChange={event => change("cancellationCutoffUnit", event.target.value)}><option value="minutes">min</option><option value="hours">horas</option><option value="days">días</option></select></div>
                             </label>
                         </div>
                     </div>}
@@ -365,7 +390,8 @@ export default function ActivityFormPage({ activity, onBack, onSaved }) {
                             {form.repeatUntil && <p><strong>Hasta:</strong> {form.repeatUntil}</p>}
                             <p><strong>Horarios:</strong> {form.startTimes.join(" · ")}</p>
                             <p><strong>Duración:</strong> {form.durationMinutes} minutos</p>
-                            <p><strong>Reservas cierran:</strong> {cutoffText(form.bookingCutoffMinutes)}</p>
+                            <p><strong>Cierre de reservas:</strong> {cutoffText(cutoffMinutes(form.bookingCutoffValue, form.bookingCutoffUnit))}</p>
+                            <p><strong>Fecha límite de cancelación:</strong> {cutoffText(cutoffMinutes(form.cancellationCutoffValue, form.cancellationCutoffUnit))}</p>
                         </div>
                         {hasRequirements && <div className="activity-preview-requirements">
                             <h4>Requisitos para participar</h4>

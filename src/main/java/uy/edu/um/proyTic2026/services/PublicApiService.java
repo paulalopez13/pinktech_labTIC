@@ -101,7 +101,7 @@ public class PublicApiService {
     }
 
     private double average(List<ActivityReview> reviews) {
-        return reviews.stream().mapToInt(ActivityReview::getRating).average().orElse(0);
+        return reviews.stream().mapToDouble(review -> review.getRating().doubleValue()).average().orElse(0);
     }
 
     // 4. Verificar un emprendimiento por su RUT (empresa) o cédula (prestador particular).

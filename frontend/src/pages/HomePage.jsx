@@ -1,6 +1,7 @@
 import UruguayPhotoCarousel from "../components/UruguayPhotoCarousel";
+import TopRatedActivities from "../components/TopRatedActivities";
 
-export default function HomePage({ onExplore }) {
+export default function HomePage({ onExplore, onSelectActivity }) {
     return (
         <main className="registration-page home-page">
             <section className="home-hero">
@@ -19,6 +20,7 @@ export default function HomePage({ onExplore }) {
 
                 <UruguayPhotoCarousel />
             </section>
+            <TopRatedActivities onExplore={onExplore} onSelectActivity={onSelectActivity} />
         </main>
     );
 }

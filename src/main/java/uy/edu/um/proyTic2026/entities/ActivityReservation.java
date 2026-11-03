@@ -51,8 +51,17 @@ public class ActivityReservation {
     @Column(nullable = false, length = 24, columnDefinition = "varchar(24) default 'APPROVED'")
     private ReservationPaymentStatus paymentStatus = ReservationPaymentStatus.APPROVED;
 
-    @Column(length = 64)
+    @Column(length = 255)
     private String paymentOrderId;
+
+    @Column(name = "payment_expires_at")
+    private Instant paymentExpiresAt;
+
+    @Column(name = "waitlist_offered_at")
+    private Instant waitlistOfferedAt;
+
+    @Column(name = "waitlist_reminder_sent", nullable = false)
+    private boolean waitlistReminderSent;
 
     @OneToMany(mappedBy = "reservation", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ReservationParticipant> participants = new ArrayList<>();

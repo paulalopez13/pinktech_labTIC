@@ -21,6 +21,7 @@ public class DemoActivitiesInitializer {
     private final ActivityCategoryRepository categoryRepository;
     private final UserRepository userRepository;
     private final ActivityReservationRepository reservationRepository;
+    private final ActivityReviewRepository reviewRepository;
     private final ResourceLoader resourceLoader;
 
     @EventListener(ApplicationReadyEvent.class)
@@ -105,12 +106,37 @@ public class DemoActivitiesInitializer {
                 .map(username -> userRepository.findByUsernameIgnoreCaseOrEmailIgnoreCase(username, username).orElse(null))
                 .filter(Tourist.class::isInstance).map(Tourist.class::cast).toList();
         if (tourists.size() < 4) return;
-        for (int index = 0; index < activities.size(); index++) {
-            Activity activity = activities.get(index);
-            Tourist tourist = tourists.get(index % tourists.size());
-            if (reservationRepository.existsByActivity_IdAndTourist_Id(activity.getId(), tourist.getId())) continue;
-            LocalDateTime start = nextStart(activity);
-            if (start == null) continue;
+        String[] comments = {
+                "Una salida preciosa y muy bien organizada. La recomiendo.",
+                "El lugar es increíble y el guía explicó todo con mucha claridad.",
+                "Muy linda experiencia, disfrutamos cada momento.",
+                "La actividad estuvo buenísima; volvería a hacerla."
+        };
+        BigDecimal[] ratings = { new BigDecimal("4.5"), new BigDecimal("5.0"), new BigDecimal("4.0"), new BigDecimal("3.5") };
+        for (int index = 0; index < tourists.size(); index++) {
+            Tourist tourist = tourists.get(index);
+            createDemoReservation(activities.get(index), tourist, nextStart(activities.get(index)), ReservationPaymentStatus.APPROVED, null, null);
+            Activity pendingActivity = activities.get(index + 4);
+            LocalDateTime pendingStart = nextStart(pendingActivity);
+            createDemoReservation(pendingActivity, tourist, pendingStart, ReservationPaymentStatus.PENDING_PAYMENT,
+                    Instant.now().plus(Duration.ofHours(2)), null);
+            Activity pastActivity = activities.get((index + 8) % activities.size());
+            LocalDateTime pastStart = LocalDate.now().minusDays(2).atTime(10, 0);
+            createDemoReservation(pastActivity, tourist, pastStart, ReservationPaymentStatus.APPROVED,
+                    null, new DemoReview(ratings[index], comments[index]));
+        }
+    }
+
+    private void createDemoReservation(Activity activity, Tourist tourist, LocalDateTime start,
+                                       ReservationPaymentStatus status, Instant paymentExpiresAt, DemoReview demoReview) {
+        if (start == null) return;
+        ActivityReservation existing = reservationRepository.findAllByActivity_IdOrderByActivityStartAsc(activity.getId()).stream()
+                .filter(reservation -> reservation.getTourist().getId().equals(tourist.getId()) && reservation.getActivityStart().equals(start))
+                .findFirst().orElse(null);
+        if (existing != null) {
+            if (demoReview != null && reviewRepository.findByReservation_Id(existing.getId()).isEmpty()) saveDemoReview(existing, demoReview);
+            return;
+        }
             ActivityReservation reservation = new ActivityReservation();
             reservation.setActivity(activity);
             reservation.setTourist(tourist);
@@ -119,8 +145,9 @@ public class DemoActivitiesInitializer {
             reservation.setContactName(tourist.getFirstName() + " " + tourist.getLastName());
             reservation.setContactEmail(tourist.getEmail());
             reservation.setContactPhone("+59899000000");
-            reservation.setPaymentStatus(ReservationPaymentStatus.APPROVED);
-            reservation.setPaymentOrderId("DEMO-RESERVA-" + activity.getId() + "-" + tourist.getId());
+            reservation.setPaymentStatus(status);
+            reservation.setPaymentExpiresAt(paymentExpiresAt);
+            reservation.setPaymentOrderId("DEMO-RESERVA-" + status + "-" + activity.getId() + "-" + tourist.getId());
             ReservationParticipant participant = new ReservationParticipant();
             participant.setReservation(reservation);
             participant.setFullName(tourist.getFirstName() + " " + tourist.getLastName());
@@ -130,8 +157,16 @@ public class DemoActivitiesInitializer {
             participant.setHeightCm(175);
             participant.setLevel("Avanzado");
             reservation.getParticipants().add(participant);
-            reservationRepository.save(reservation);
-        }
+        ActivityReservation saved = reservationRepository.save(reservation);
+        if (demoReview != null) saveDemoReview(saved, demoReview);
+    }
+
+    private void saveDemoReview(ActivityReservation reservation, DemoReview demoReview) {
+        ActivityReview review = new ActivityReview();
+        review.setReservation(reservation);
+        review.setRating(demoReview.rating());
+        review.setComment(demoReview.comment());
+        reviewRepository.save(review);
     }
 
     private LocalDateTime nextStart(Activity activity) {
@@ -182,4 +217,5 @@ public class DemoActivitiesInitializer {
                                 String category, String photo, long price, int capacity, int durationMinutes,
                                 int minimumAge, Integer minimumHeightCm, String difficulty, String equipment,
                                 ActivityRecurrence recurrence, int daysFromToday, int durationDays, int bookingCutoffHours) { }
+    private record DemoReview(BigDecimal rating, String comment) { }
 }

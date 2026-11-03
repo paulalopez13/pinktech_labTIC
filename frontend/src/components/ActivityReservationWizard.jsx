@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { getActivityAvailability, reserveActivitySandbox } from "../services/activityService";
+import { getActivityAvailability, createReservationHold, createStripeCheckout, joinActivityWaitlist } from "../services/activityService";
 import DocumentInput from "./DocumentInput";
 import PhoneInput, { phoneCountries } from "./PhoneInput";
+import { getWeatherPreview } from "../services/weatherService";
 
 const dateKey = value => value.slice(0, 10);
 const dateLabel = value => new Date(`${value}T12:00:00`).toLocaleDateString("es-UY", { dateStyle: "full" });
@@ -15,6 +16,7 @@ export default function ActivityReservationWizard({ activity, currentUser, onBac
     const [loading, setLoading] = useState(false);
     const [selectedDate, setSelectedDate] = useState("");
     const [selectedTime, setSelectedTime] = useState("");
+    const [weather, setWeather] = useState(null);
     const [month, setMonth] = useState(() => {
         const first = activity.upcomingOccurrences?.[0];
         return first ? new Date(`${dateKey(first)}T12:00:00`) : new Date();
@@ -24,6 +26,9 @@ export default function ActivityReservationWizard({ activity, currentUser, onBac
     const [companions, setCompanions] = useState([]);
     const [error, setError] = useState("");
     const [busy, setBusy] = useState(false);
+    const [reservationHold, setReservationHold] = useState(null);
+    const [secondsLeft, setSecondsLeft] = useState(7200);
+    const [waitlistMode, setWaitlistMode] = useState(false);
     const occurrences = activity.upcomingOccurrences || [];
     const daySlots = useMemo(() => {
         const map = new Map();
@@ -45,19 +50,52 @@ export default function ActivityReservationWizard({ activity, currentUser, onBac
         return () => { active = false; };
     }, [activity.id, count, occurrences]);
 
-    const availableDates = useMemo(() => [...daySlots]
-        .filter(([, slots]) => slots.some(slot => Number(availability[slot] || 0) >= count)).map(([day]) => day),
-    [daySlots, availability, count]);
-    const slotsForDate = (daySlots.get(selectedDate) || []).filter(slot => Number(availability[slot] || 0) >= count);
+    useEffect(() => {
+        if (step !== 2 || reservationHold) return;
+        let active = true;
+        setBusy(true);
+        createReservationHold(activity.id, {
+            activityStart: selectedTime,
+            contactName: reservator.fullName.trim(), contactEmail: contact.email.trim(), contactPhone: contact.phone,
+            participants: allPeople.map(person => ({ ...person, fullName: person.fullName.trim(), documentNumber: person.documentNumber.trim().toUpperCase(),
+                age: Number(person.age), heightCm: person.heightCm === "" ? null : Number(person.heightCm), level: person.level || null }))
+        }).then(hold => { if (active) setReservationHold(hold); })
+            .catch(holdError => { if (active) setError(holdError.message); })
+            .finally(() => { if (active) setBusy(false); });
+        return () => { active = false; };
+    }, [step, reservationHold, activity.id]);
+
+    useEffect(() => {
+        if (!reservationHold?.paymentExpiresAt) return;
+        const updateTimer = () => setSecondsLeft(Math.max(0, Math.ceil((new Date(reservationHold.paymentExpiresAt).getTime() - Date.now()) / 1000)));
+        updateTimer();
+        const timer = window.setInterval(updateTimer, 1000);
+        return () => window.clearInterval(timer);
+    }, [reservationHold?.paymentExpiresAt]);
+
+    const availableDates = useMemo(() => [...daySlots.keys()], [daySlots]);
+    const slotsForDate = daySlots.get(selectedDate) || [];
     const canHeight = Number(activity.minimumHeightCm) > 0 || activity.maximumHeightCm != null;
     const canLevel = Boolean(activity.difficulty);
     const priceTotal = (Number(activity.price) || 0) * count;
     const allPeople = [reservator, ...companions];
-    const steps = ["Fecha y horario", "Datos del grupo", "Pago de prueba"];
+    const steps = ["Fecha y horario", "Datos del grupo", waitlistMode ? "Lista de espera" : "Pago"];
     const startDay = new Date(month.getFullYear(), month.getMonth(), 1);
     const offset = (startDay.getDay() + 6) % 7;
     const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
     const monthName = month.toLocaleDateString("es-UY", { month: "long", year: "numeric" });
+
+    useEffect(() => {
+        if (!selectedTime) { setWeather(null); return; }
+        const controller = new AbortController();
+        setWeather({ loading: true });
+        getWeatherPreview({ city: activity.city, department: activity.department, activityStart: selectedTime }, controller.signal)
+            .then(setWeather)
+            .catch(error => {
+                if (error.name !== "AbortError") setWeather({ unavailable: true, message: "No pudimos cargar el pronóstico ahora." });
+            });
+        return () => controller.abort();
+    }, [activity.city, activity.department, selectedTime]);
 
     function phoneIsComplete(value) {
         const digits = value.replace(/\D/g, "");
@@ -81,34 +119,56 @@ export default function ActivityReservationWizard({ activity, currentUser, onBac
         return "";
     }
 
-    function next() {
+    async function next() {
         setError("");
         if (step === 0) {
             if (!Number.isInteger(count) || count < 1 || count > activity.capacity) return setError(`Elegí entre 1 y ${activity.capacity} participantes.`);
-            if (!selectedDate || !selectedTime) return setError("Elegí una fecha y un horario disponible para todo el grupo.");
+            if (!selectedDate || !selectedTime) return setError("Elegí una fecha y un horario.");
         }
         if (step === 1) {
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email)) return setError("Ingresá un correo válido.");
             if (!phoneIsComplete(contact.phone)) return setError("Completá todos los dígitos del teléfono según el país elegido.");
             const invalidPerson = allPeople.map(personIsValid).find(Boolean);
             if (invalidPerson) return setError(invalidPerson);
+            if (waitlistMode) {
+                setBusy(true);
+                try {
+                    const result = await joinActivityWaitlist(activity.id, reservationPayload());
+                    onReserved?.({ reservation: result, total: result.total, waitlist: true }, contact.email.trim());
+                } catch (waitlistError) { setError(waitlistError.message); }
+                finally { setBusy(false); }
+                return;
+            }
+            if (priceTotal === 0) {
+                setBusy(true);
+                try {
+                    const result = await createReservationHold(activity.id, reservationPayload());
+                    onReserved?.({ reservation: result, total: 0 }, contact.email.trim());
+                } catch (holdError) { setError(holdError.message); }
+                finally { setBusy(false); }
+                return;
+            }
         }
         setStep(value => Math.min(2, value + 1));
     }
 
-    async function payInSandbox() {
+    async function beginPayment() {
+        if (!reservationHold?.id) return setError("Estamos preparando la reserva. Esperá un momento.");
+        if (secondsLeft <= 0) return setError("Se terminó el tiempo para pagar. La reserva expiró y los cupos quedaron liberados.");
         setBusy(true); setError("");
         try {
-            const result = await reserveActivitySandbox(activity.id, {
-                activityStart: selectedTime,
-                contactName: reservator.fullName.trim(), contactEmail: contact.email.trim(), contactPhone: contact.phone,
-                participants: allPeople.map(person => ({ ...person, fullName: person.fullName.trim(), documentNumber: person.documentNumber.trim().toUpperCase(),
-                    age: Number(person.age), heightCm: person.heightCm === "" ? null : Number(person.heightCm), level: person.level || null }))
-            });
-            onReserved?.(result, contact.email.trim());
+            const result = await createStripeCheckout(reservationHold.id);
+            if (result.paymentStatus === "APPROVED") onReserved?.({ reservation: result, total: result.total }, contact.email.trim());
+            else if (result.paymentStatus === "EXPIRED") setError("La reserva venció y los cupos se liberaron. Si Stripe llegó a cobrar, se tramita la devolución.");
+            else if (result.url) window.location.assign(result.url);
+            else setError("Stripe no devolvió un enlace de pago. Volvé a intentarlo.");
         } catch (payError) { setError(payError.message); }
         finally { setBusy(false); }
     }
+
+    const timerLabel = secondsLeft <= 600
+        ? `${String(Math.floor(secondsLeft / 60)).padStart(2, "0")} min ${String(secondsLeft % 60).padStart(2, "0")} seg`
+        : `${String(Math.floor(secondsLeft / 3600)).padStart(2, "0")} h ${String(Math.floor((secondsLeft % 3600) / 60)).padStart(2, "0")} min ${String(secondsLeft % 60).padStart(2, "0")} seg`;
 
     function updateCount(event) {
         const value = Math.max(1, Math.min(activity.capacity, Number(event.target.value) || 1));
@@ -121,6 +181,24 @@ export default function ActivityReservationWizard({ activity, currentUser, onBac
         setSelectedDate(day);
         const firstAvailable = (daySlots.get(day) || []).find(slot => Number(availability[slot] || 0) >= count);
         setSelectedTime(firstAvailable || "");
+        setWaitlistMode(false);
+    }
+
+    function reservationPayload() {
+        return { activityStart: selectedTime, contactName: reservator.fullName.trim(), contactEmail: contact.email.trim(), contactPhone: contact.phone,
+            participants: allPeople.map(person => ({ ...person, fullName: person.fullName.trim(), documentNumber: person.documentNumber.trim().toUpperCase(),
+                age: Number(person.age), heightCm: person.heightCm === "" ? null : Number(person.heightCm), level: person.level || null })) };
+    }
+
+    function chooseSlot(slot) {
+        const full = Number(availability[slot] || 0) < count;
+        if (full) {
+            const join = window.confirm("Horario completo. ¿Deseás anotarte en la lista de espera?");
+            if (!join) { setSelectedTime(""); setWaitlistMode(false); setError("Seleccioná otro horario."); return; }
+        }
+        setError("");
+        setWaitlistMode(full);
+        setSelectedTime(slot);
     }
 
     function changePerson(index, changes) {
@@ -150,14 +228,16 @@ export default function ActivityReservationWizard({ activity, currentUser, onBac
 
         {step === 0 && <section className="reservation-step"><h2>Elegí fecha y horario</h2>
             <label className="form-field reservation-count-field">Cantidad de participantes<input type="number" min="1" max={activity.capacity} value={count} onChange={updateCount} /></label>
-            <p className="reservation-calendar-hint">Los días verdes tienen cupos disponibles para el grupo.</p>
+            <p className="reservation-calendar-hint">Verde: hay cupos. Los horarios completos aparecen en rojo.</p>
             <div className="reservation-calendar"><div className="reservation-calendar-head"><button type="button" aria-label="Mes anterior" onClick={() => setMonth(value => new Date(value.getFullYear(), value.getMonth() - 1, 1))}>‹</button><strong>{monthName}</strong><button type="button" aria-label="Mes siguiente" onClick={() => setMonth(value => new Date(value.getFullYear(), value.getMonth() + 1, 1))}>›</button></div>
                 <div className="reservation-calendar-grid">{["L", "M", "M", "J", "V", "S", "D"].map((day, index) => <span className="weekday" key={`${day}-${index}`}>{day}</span>)}
                     {Array.from({ length: offset }, (_, index) => <span key={`empty-${index}`} />)}
-                    {Array.from({ length: daysInMonth }, (_, index) => { const date = new Date(month.getFullYear(), month.getMonth(), index + 1); const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; const available = availableDates.includes(key); return <button type="button" key={key} disabled={!available || loading} className={`${available ? "available" : ""} ${selectedDate === key ? "selected" : ""}`} onClick={() => chooseDay(key)} aria-label={`${key}${available ? ", disponible" : ", sin disponibilidad"}`}>{date.getDate()}</button>; })}</div>
+                    {Array.from({ length: daysInMonth }, (_, index) => { const date = new Date(month.getFullYear(), month.getMonth(), index + 1); const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; const hasSlots = availableDates.includes(key); const available = (daySlots.get(key) || []).some(slot => Number(availability[slot] || 0) >= count); return <button type="button" key={key} disabled={!hasSlots || loading} className={`${available ? "available" : ""} ${selectedDate === key ? "selected" : ""}`} onClick={() => chooseDay(key)} aria-label={`${key}${available ? ", disponible" : ", sin cupos para el grupo"}`}>{date.getDate()}</button>; })}</div>
                 {loading && <small>Consultando cupos…</small>}
             </div>
-            {selectedDate && <div className="reservation-time-picker"><h3>Horarios disponibles · {dateLabel(selectedDate)}</h3><div className="reservation-slot-list">{slotsForDate.map(slot => <button type="button" key={slot} className={selectedTime === slot ? "selected" : ""} onClick={() => setSelectedTime(slot)}>{new Date(slot).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })} · {availability[slot]} cupos</button>)}</div>{slotsForDate.length === 0 && <p>No quedan horarios con cupos suficientes para este grupo.</p>}</div>}
+            {selectedDate && <div className="reservation-time-picker"><h3>Horarios · {dateLabel(selectedDate)}</h3><div className="reservation-slot-list">{slotsForDate.map(slot => { const remaining = Number(availability[slot] || 0); const full = remaining < count; return <button type="button" key={slot} className={`${selectedTime === slot ? "selected" : ""} ${full ? "full" : ""}`} onClick={() => chooseSlot(slot)}>{new Date(slot).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })} · {full ? "Completo" : `${remaining} cupos`}</button>; })}</div>
+                {selectedTime && <div className="reservation-weather-preview" aria-live="polite"><span className="reservation-weather-icon" aria-hidden="true">{weather?.loading ? "…" : weather?.icon || "🌤️"}</span><div className="reservation-weather-content"><strong>Clima previsto para la actividad</strong>{weather?.loading ? <p>Consultando el pronóstico…</p> : weather?.unavailable ? <p>{weather.message}</p> : weather && <><p>{weather.condition} · <b>{weather.temperature}°C</b></p><small>{weather.rain == null ? "" : `Lluvia ${weather.rain}% · `}Viento {weather.wind} km/h · Fuente: Open-Meteo</small></>}</div></div>}
+                {waitlistMode && <p className="waitlist-note">El pago se solicita solo si se libera un lugar.</p>}</div>}
         </section>}
 
         {step === 1 && <section className="reservation-step"><h2>Datos del grupo</h2><p>Completá los datos de quien reserva y de cada participante.</p>
@@ -171,10 +251,19 @@ export default function ActivityReservationWizard({ activity, currentUser, onBac
             <small className="reservation-disclaimer">La empresa no se hace responsable si, al llegar, algún participante no cumple los requisitos indicados para esta actividad.</small>
         </section>}
 
-        {step === 2 && <section className="reservation-step"><h2>Resumen y pago de prueba</h2><div className="reservation-summary"><p><span>Actividad</span><strong>{activity.name}</strong></p><p><span>Fecha y hora</span><strong>{dateLabel(selectedDate)} · {new Date(selectedTime).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })}</strong></p><p><span>Participantes</span><strong>{count}</strong></p><p><span>Precio por persona</span><strong>{priceText(activity.price)}</strong></p><p className="total"><span>Total</span><strong>{priceText(priceTotal)}</strong></p></div><div className="form-message info sandbox-note">Entorno sandbox de la aplicación: este botón simula un pago aprobado. No se solicitan datos de tarjeta ni se realiza un cobro real.</div><button className="submit-button" type="button" disabled={busy} onClick={payInSandbox}>{busy ? "Procesando prueba…" : "Confirmar reserva"}</button></section>}
+        {step === 2 && <section className="reservation-step"><h2>Pago</h2>
+            {reservationHold?.paymentStatus === "EXPIRED" || (reservationHold && secondsLeft === 0)
+                ? <div className="form-message error">Expiró el tiempo de pago. La reserva venció y los cupos se liberaron.</div>
+                : <>
+                    <div className={`reservation-payment-timer ${secondsLeft < 120 ? "urgent" : ""}`} role="timer"><span>Tiempo para completar el pago</span><strong>{timerLabel}</strong><small>Los cupos quedan apartados mientras el contador esté activo.</small></div>
+                    {!reservationHold && <p>{busy ? "Apartando los cupos…" : "No se pudo apartar el lugar."}</p>}
+                    <div className="reservation-summary"><p><span>Actividad</span><strong>{activity.name}</strong></p><p><span>Fecha y hora</span><strong>{dateLabel(selectedDate)} · {new Date(selectedTime).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })}</strong></p><p><span>Participantes</span><strong>{count}</strong></p><p><span>Precio por persona</span><strong>{priceText(activity.price)}</strong></p><p className="total"><span>Total</span><strong>{priceText(priceTotal)}</strong></p></div>
+                    {reservationHold && secondsLeft > 0 && <div className="reservation-payment-actions"><button className="submit-button" type="button" disabled={busy} onClick={beginPayment}>Pagar</button></div>}
+                </>}
+        </section>}
 
         {error && <div className="form-message error" role="alert">{error}</div>}
-        <div className="activity-step-actions">{step > 0 && <button className="activity-step-back" type="button" onClick={() => { setError(""); setStep(value => value - 1); }}>Volver</button>}{step < 2 && <button className="submit-button" type="button" onClick={next}>Siguiente</button>}</div>
+        <div className="activity-step-actions">{step > 0 && <button className="activity-step-back" type="button" onClick={() => { setError(""); setStep(value => value - 1); }}>Volver</button>}{step < 2 && <button className="submit-button" type="button" disabled={busy} onClick={next}>{busy ? "Enviando…" : step === 1 && waitlistMode ? "Anotarme a la lista de espera" : priceTotal === 0 && step === 1 ? "Confirmar reserva gratis" : "Siguiente"}</button>}</div>
     </section>;
 }
 

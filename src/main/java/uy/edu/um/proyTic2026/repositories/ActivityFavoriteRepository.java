@@ -8,4 +8,5 @@ public interface ActivityFavoriteRepository extends JpaRepository<ActivityFavori
     boolean existsByTourist_IdAndActivity_Id(Long touristId, Long activityId);
     List<ActivityFavorite> findAllByTourist_IdOrderByCreatedAtDesc(Long touristId);
     void deleteByTourist_IdAndActivity_Id(Long touristId, Long activityId);
+    void deleteAllByActivity_Id(Long activityId);
 }

@@ -127,4 +127,20 @@ public class AccountEmailService {
                         + "Te esperamos. Podés consultar esta reserva desde la sección Mis reservas.",
                 "casa-pueblo.png");
     }
+
+    public void waitlistOffer(String email, String contactName, String activityName, LocalDateTime activityStart, int participants) {
+        String date = activityStart.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM 'de' yyyy, HH:mm", new Locale("es", "UY")));
+        send(email, "Se liberaron cupos · " + activityName,
+                "¡Hola " + contactName + "!\n\nSe liberaron cupos para la actividad que elegiste.\n\n"
+                        + "Actividad: " + activityName + "\nFecha y hora: " + date + "\nParticipantes: " + participants + "\n\n"
+                        + "Entrá a Mis reservas y aceptá o rechazá el lugar dentro de las próximas 24 horas. Si lo aceptás, vas a poder completar el pago.",
+                "campo-durazno.png");
+    }
+
+    public void waitlistOfferReminder(String email, String contactName, String activityName) {
+        send(email, "Recordatorio: tu lugar vence en 2 horas · " + activityName,
+                "¡Hola " + contactName + "!\n\nTodavía podés aceptar o rechazar el lugar liberado para " + activityName
+                        + ". Tenés 2 horas para responder desde Mis reservas; después se ofrecerá a otra persona.",
+                "casa-pueblo.png");
+    }
 }

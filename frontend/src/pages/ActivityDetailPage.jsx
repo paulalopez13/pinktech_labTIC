@@ -2,17 +2,20 @@ import { useEffect, useState } from "react";
 import { getActivityReviews, getActivityAvailability } from "../services/activityService";
 import ActivityReservationWizard from "../components/ActivityReservationWizard";
 import { cutoffText } from "../components/cutoffText";
+import RatingStars from "../components/RatingStars";
 
 const weekdayLabels = { MONDAY: "lunes", TUESDAY: "martes", WEDNESDAY: "miércoles", THURSDAY: "jueves", FRIDAY: "viernes", SATURDAY: "sábado", SUNDAY: "domingo" };
 const recurrenceLabels = { ONCE: "Una sola vez", DAILY: "Diariamente", WEEKLY: "Semanalmente", BIWEEKLY: "Cada 2 semanas", MONTHLY: "Mensualmente", SEASONAL: "Por temporada" };
 const priceText = value => Number(value) === 0 ? "Gratis" : `$U ${new Intl.NumberFormat("es-UY", { maximumFractionDigits: 2 }).format(Number(value))}`;
 
-export default function ActivityDetailPage({ activity, currentUser, isOwner = false, favorite = false, onToggleFavorite, onProviderClick, onCategoryClick, onBack, onLogin, onReserved, onViewReservations, onEdit, onAddActivity }) {
+export default function ActivityDetailPage({ activity, currentUser, isOwner = false, favorite = false, onToggleFavorite, onProviderClick, onCategoryClick, onBack, onLogin, onReserved, onViewReservations, onEdit, onDelete }) {
     const [photoIndex, setPhotoIndex] = useState(0);
     const [selectedTime, setSelectedTime] = useState(activity.upcomingOccurrences?.[0] || "");
     const [reviews, setReviews] = useState([]);
     const [error, setError] = useState("");
     const [reviewsLoaded, setReviewsLoaded] = useState(false);
+    const [reviewRatingFilter, setReviewRatingFilter] = useState("all");
+    const [reviewSort, setReviewSort] = useState("newest");
     const [availableSpots, setAvailableSpots] = useState(null);
     const [availabilityLoading, setAvailabilityLoading] = useState(false);
     const [reservationOpen, setReservationOpen] = useState(false);
@@ -23,6 +26,17 @@ export default function ActivityDetailPage({ activity, currentUser, isOwner = fa
     const recurrence = `${recurrenceLabels[activity.recurrence] || ""}${selectedDays.length ? ` · ${selectedDays.join(", ")}` : ""}`;
     const hasRequirements = Boolean(activity.equipment || activity.otherRequirements || Number(activity.minimumAge) > 0
         || activity.maximumAge != null || Number(activity.minimumHeightCm) > 0 || activity.maximumHeightCm != null || activity.difficulty);
+    const averageReviewRating = reviews.length
+        ? reviews.reduce((total, review) => total + Number(review.rating), 0) / reviews.length
+        : 0;
+    const visibleReviews = reviews
+        .filter(review => reviewRatingFilter === "all" || Math.floor(Number(review.rating)) === Number(reviewRatingFilter))
+        .sort((a, b) => {
+            if (reviewSort === "oldest") return new Date(a.createdAt) - new Date(b.createdAt);
+            if (reviewSort === "highest") return Number(b.rating) - Number(a.rating) || new Date(b.createdAt) - new Date(a.createdAt);
+            if (reviewSort === "lowest") return Number(a.rating) - Number(b.rating) || new Date(b.createdAt) - new Date(a.createdAt);
+            return new Date(b.createdAt) - new Date(a.createdAt);
+        });
 
     useEffect(() => {
         let active = true;
@@ -50,8 +64,10 @@ export default function ActivityDetailPage({ activity, currentUser, isOwner = fa
             <section className="reservation-success-card form-card" role="status">
                 <div className="reservation-success-icon" aria-hidden="true">✓</div>
                 <p className="reservation-success-eyebrow">Uruguay Mnatural</p>
-                <h1>¡Reserva exitosa!</h1>
-                <p className="reservation-success-intro">Tu lugar quedó confirmado. Enviamos los datos de la reserva a <strong>{confirmedReservation.email}</strong>.</p>
+                <h1>{confirmedReservation.waitlist ? "Estás en la lista de espera" : "¡Reserva exitosa!"}</h1>
+                <p className="reservation-success-intro">{confirmedReservation.waitlist
+                    ? <>Guardamos los datos del grupo. Te avisaremos por correo si se libera un lugar. No se realizó ningún cobro.</>
+                    : <>Tu lugar quedó confirmado. Enviamos los datos de la reserva a <strong>{confirmedReservation.email}</strong>.</>}</p>
                 <div className="reservation-summary reservation-success-summary">
                     <p><span>Actividad</span><strong>{reservation.activityName}</strong></p>
                     <p><span>Fecha</span><strong>{start.toLocaleDateString("es-UY", { dateStyle: "full" })}</strong></p>
@@ -59,7 +75,7 @@ export default function ActivityDetailPage({ activity, currentUser, isOwner = fa
                     <p><span>Lugar</span><strong>{reservation.location}, {reservation.city}, {reservation.department}</strong></p>
                     <p><span>Participantes</span><strong>{reservation.participantCount}</strong></p>
                     <p><span>Correo de confirmación</span><strong>{confirmedReservation.email}</strong></p>
-                    <p className="total"><span>Total</span><strong>{priceText(confirmedReservation.total)}</strong></p>
+                    {!confirmedReservation.waitlist && <p className="total"><span>Total</span><strong>{priceText(confirmedReservation.total)}</strong></p>}
                 </div>
                 <div className="reservation-success-actions">
                     <button className="submit-button" type="button" onClick={onViewReservations}>Ver mis reservas</button>
@@ -88,7 +104,7 @@ export default function ActivityDetailPage({ activity, currentUser, isOwner = fa
                         onClick={() => setPhotoIndex(index => (index + 1) % photos.length)}>›</button>
                     <span className="gallery-counter">{Math.min(photoIndex, photos.length - 1) + 1} / {photos.length}</span>
                 </>}
-                {!isOwner && (currentUser?.role === "TOURIST" || !currentUser) && <button type="button"
+                {!isOwner && activity.acceptingReservations !== false && (currentUser?.role === "TOURIST" || !currentUser) && <button type="button"
                     className={`activity-detail-heart ${favorite ? "active" : ""}`} onClick={onToggleFavorite}
                     aria-label={favorite ? "Quitar actividad de favoritos" : "Iniciar sesión para guardar actividad"}>{favorite ? "♥" : "♡"}</button>}
             </div>
@@ -110,12 +126,14 @@ export default function ActivityDetailPage({ activity, currentUser, isOwner = fa
                 <p><strong>{availabilityLoading ? "…" : availableSpots ?? activity.capacity}</strong><span>cupos disponibles para este horario</span></p>
                 <p><strong>{priceText(activity.price)}</strong><span>por persona</span></p>
             </div>
+            {activity.acceptingReservations === false && <p className="activity-not-accepting">Esta actividad ya no acepta nuevas reservas. La ficha se conserva para completar los pagos pendientes.</p>}
 
             <div className="activity-preview-grid">
                 <p><strong>Frecuencia:</strong> {recurrence}{activity.repeatUntil ? ` hasta ${new Date(`${activity.repeatUntil}T12:00:00`).toLocaleDateString("es-UY")}` : ""}</p>
                 <p><strong>Horarios:</strong> {activity.startTimes.join(" · ")}</p>
                 <p><strong>Duración:</strong> {activity.durationMinutes >= 60 ? `${Math.floor(activity.durationMinutes / 60)} h${activity.durationMinutes % 60 ? ` ${activity.durationMinutes % 60} min` : ""}` : `${activity.durationMinutes} min`}</p>
                 <p><strong>Reservas cierran:</strong> {cutoffText(activity.bookingCutoffMinutes)}.</p>
+                {activity.cancellationCutoffMinutes > 0 && <p><strong>Fecha límite de cancelación:</strong> {cutoffText(activity.cancellationCutoffMinutes)}.</p>}
             </div>
 
             {hasRequirements && <section className="activity-preview-requirements">
@@ -131,20 +149,32 @@ export default function ActivityDetailPage({ activity, currentUser, isOwner = fa
 
             {isOwner ? <div className="activity-detail-actions">
                 <button className="submit-button" type="button" onClick={() => onEdit?.(activity)}>Editar actividad</button>
-                <button className="activity-step-back" type="button" onClick={onAddActivity}>Agregar otra actividad</button>
+                <button className="activity-delete-detail-button" type="button" onClick={() => onDelete?.(activity)}>Eliminar actividad</button>
             </div> : currentUser?.role === "TOURIST" && activity.upcomingOccurrences?.length > 0 ? <div className="activity-booking-row">
                 <button className="submit-button" type="button" onClick={() => setReservationOpen(true)}>Reservar</button>
             </div> : null}
-            {!isOwner && currentUser?.role === "TOURIST" && <button className={`activity-save-action ${favorite ? "active" : ""}`} type="button" onClick={onToggleFavorite}>
+            {!isOwner && activity.acceptingReservations !== false && currentUser?.role === "TOURIST" && <button className={`activity-save-action ${favorite ? "active" : ""}`} type="button" onClick={onToggleFavorite}>
                 {favorite ? "♥ Guardada en favoritos" : "♡ Guardar actividad en favoritos"}</button>}
-            {!isOwner && !currentUser && <button className="submit-button activity-login-action" type="button" onClick={onLogin}>
+            {!isOwner && activity.acceptingReservations !== false && !currentUser && <button className="submit-button activity-login-action" type="button" onClick={onLogin}>
                 Iniciá sesión para reservar o guardar la actividad</button>}
             {error && <div className="form-message error" role="alert">{error}</div>}
 
             <section className="activity-reviews">
-                <h2>Opiniones de quienes participaron</h2>
-                {!reviewsLoaded ? <p>Cargando opiniones…</p> : reviews.length === 0 ? <p>Todavía no hay comentarios.</p> : reviews.map(review => <article className="activity-review-card" key={review.id}>
-                    <div><strong>{review.username}</strong><span aria-label={`${review.rating} de 5 estrellas`}>{"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}</span></div>
+                <div className="activity-reviews-heading"><h2>Reseñas</h2>
+                    {reviews.length > 0 && <div className="activity-reviews-average"><RatingStars rating={averageReviewRating} /><strong>{averageReviewRating.toFixed(1)}</strong><span>({reviews.length})</span></div>}
+                    <div className="activity-review-controls">
+                        <div className="review-rating-filter"><span>Filtrar por puntuación</span>
+                            <RatingStars rating={reviewRatingFilter === "all" ? 0 : Number(reviewRatingFilter)} onChange={rating => setReviewRatingFilter(String(rating))} label="Filtrar opiniones por puntuación" allowHalf={false} />
+                            {reviewRatingFilter !== "all" && <button type="button" onClick={() => setReviewRatingFilter("all")}>Ver todas</button>}
+                        </div>
+                        <label>Ordenar por<select value={reviewSort} onChange={event => setReviewSort(event.target.value)}>
+                            <option value="newest">Más recientes</option><option value="oldest">Más antiguas</option>
+                            <option value="highest">Mejor puntuadas</option><option value="lowest">Peor puntuadas</option>
+                        </select></label>
+                    </div>
+                </div>
+                {!reviewsLoaded ? <p>Cargando opiniones…</p> : reviews.length === 0 ? <p>Todavía no hay comentarios.</p> : visibleReviews.length === 0 ? <p>No hay opiniones con esa puntuación.</p> : visibleReviews.map(review => <article className="activity-review-card" key={review.id}>
+                    <div><strong>{review.username}</strong><RatingStars rating={review.rating} /></div>
                     <p>{review.comment}</p>
                 </article>)}
             </section>

@@ -25,6 +25,7 @@ public record ActivityRequest(
         @NotNull @DecimalMin("0.00") @Digits(integer = 8, fraction = 2) BigDecimal price,
         @NotNull @Min(1) @Max(1440) Integer durationMinutes,
         @NotNull @Min(0) @Max(43200) Integer bookingCutoffMinutes,
+        @NotNull @Min(0) @Max(43200) Integer cancellationCutoffMinutes,
         @Size(max = 500) String equipment,
         @Min(0) @Max(120) Integer minimumAge,
         @Min(0) @Max(120) Integer maximumAge,

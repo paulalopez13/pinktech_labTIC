@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "activity_reviews", uniqueConstraints =
@@ -22,8 +23,8 @@ public class ActivityReview {
     @JoinColumn(name = "reservation_id", nullable = false, unique = true)
     private ActivityReservation reservation;
 
-    @Column(nullable = false)
-    private Integer rating;
+    @Column(nullable = false, precision = 2, scale = 1)
+    private BigDecimal rating;
 
     @Column(nullable = false, length = 1500)
     private String comment;

@@ -23,12 +23,13 @@ public class SecurityConfig {
                         .ignoringRequestMatchers(
                                 "/api/providers/companies/register", "/api/providers/individuals/register",
                                 "/api/tourists/register", "/api/auth/login", "/api/auth/logout",
-                                "/api/auth/password/forgot", "/api/auth/password/reset"))
+                                "/api/auth/password/forgot", "/api/auth/password/reset",
+                                "/api/payments/stripe/webhook"))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/providers/companies/register",
                                 "/api/providers/individuals/register", "/api/tourists/register",
                                 "/api/auth/login", "/api/auth/logout", "/api/auth/password/forgot",
-                                "/api/auth/password/reset").permitAll()
+                                "/api/auth/password/reset", "/api/payments/stripe/webhook").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/me", "/api/auth/csrf").permitAll()
                         // API pública para otras plataformas: solo lectura y sin iniciar sesión.
                         .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()

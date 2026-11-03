@@ -30,6 +30,7 @@ async function mutation(path, method, body) {
 }
 
 export const getActivities = () => request("/activities");
+export const getActivityById = id => request(`/activities/${id}`);
 export const getMyActivities = () => request("/activities/mine");
 export const getMyReservations = () => request("/reservations/mine");
 export const getProviderReservations = () => request("/reservations/provider");
@@ -52,5 +53,12 @@ async function multipartMutation(path, method, activity, photos = [], keepPhotoI
 export const createActivity = (activity, photos) => multipartMutation("/activities", "POST", activity, photos);
 export const updateActivity = (id, activity, photos, keepPhotoIds) => multipartMutation(`/activities/${id}`, "PUT", activity, photos, keepPhotoIds);
 export const deleteActivity = id => mutation(`/activities/${id}`, "DELETE");
-export const reserveActivitySandbox = (id, reservation) => mutation(`/reservations/activities/${id}/sandbox-payment`, "POST", reservation);
+export const createReservationHold = (id, reservation) => mutation(`/reservations/activities/${id}/hold`, "POST", reservation);
+export const createStripeCheckout = id => mutation(`/reservations/${id}/stripe-checkout`, "POST");
+export const verifyStripeCheckout = (id, sessionId) => request(`/reservations/${id}/stripe-checkout?sessionId=${encodeURIComponent(sessionId)}`);
+export const cancelStripeCheckout = id => mutation(`/reservations/${id}/stripe-checkout/cancel`, "POST");
+export const joinActivityWaitlist = (id, reservation) => mutation(`/reservations/activities/${id}/waitlist`, "POST", reservation);
+export const cancelReservation = id => mutation(`/reservations/${id}/cancel`, "POST");
+export const answerWaitlistOffer = (id, accept) => mutation(`/reservations/${id}/waitlist-offer`, "POST", { accept });
+export const rescheduleReservation = (id, activityStart) => mutation(`/reservations/${id}/reschedule`, "PUT", { activityStart });
 export const submitActivityReview = (reservationId, review) => mutation(`/reservations/${reservationId}/review`, "POST", review);

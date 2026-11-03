@@ -126,7 +126,7 @@ class PublicApiTopRatedTests {
 
         ActivityReview review = new ActivityReview();
         review.setReservation(reservation);
-        review.setRating(rating);
+        review.setRating(BigDecimal.valueOf(rating));
         review.setComment("Opinión de prueba.");
         reviewRepository.save(review);
     }

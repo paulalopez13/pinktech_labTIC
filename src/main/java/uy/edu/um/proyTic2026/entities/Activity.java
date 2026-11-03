@@ -84,8 +84,11 @@ public class Activity {
     private Integer durationMinutes;
 
     @Column(nullable = false)
-    // Hasta cuántos minutos antes del inicio se puede reservar. 0 = hasta la hora de inicio.
-    private Integer bookingCutoffMinutes = 0;
+    // Hasta cuántos minutos antes del inicio se puede reservar. Por defecto, un día antes.
+    private Integer bookingCutoffMinutes = 1440;
+
+    @Column(nullable = false)
+    private Integer cancellationCutoffMinutes = 1440;
 
     @Column(length = 500)
     private String equipment;
@@ -100,4 +103,10 @@ public class Activity {
 
     @Column(length = 1000)
     private String otherRequirements;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean archived = false;
+
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean acceptingReservations = true;
 }
