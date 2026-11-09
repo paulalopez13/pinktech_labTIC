@@ -67,7 +67,7 @@ public class CompanyProviderService {
         company.setRut(request.getRut());
 
         companyProviderRepository.save(company);
-        accountEmailService.providerRequested(company.getEmail(), company.getUsername());
+        AfterCommit.run(() -> accountEmailService.providerRequested(company.getEmail(), company.getUsername()));
 
     }
 

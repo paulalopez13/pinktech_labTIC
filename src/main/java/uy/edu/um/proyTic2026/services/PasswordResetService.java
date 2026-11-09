@@ -47,6 +47,7 @@ public class PasswordResetService {
     @Value("${app.password-reset.frontend-url:http://127.0.0.1:5173}")
     private String frontendUrl;
 
+    @Transactional
     public String requestReset(String email) {
         JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
         if (mailSender == null || smtpHost == null || smtpHost.isBlank()

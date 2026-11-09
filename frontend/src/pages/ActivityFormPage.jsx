@@ -43,7 +43,7 @@ function blankForm() {
     return {
         name: "", department: "", city: "", location: "", description: "", categoryIds: [],
         firstDate: localToday(), recurrence: "ONCE", repeatUntil: "", startTimes: ["10:00"], weekdays: [],
-        capacity: "10", price: "", durationMinutes: "60", bookingCutoffValue: "1", bookingCutoffUnit: "days",
+        capacity: "10", price: "", refundPercentage: "100", durationMinutes: "60", bookingCutoffValue: "1", bookingCutoffUnit: "days",
         cancellationCutoffValue: "2", cancellationCutoffUnit: "days", equipment: "",
         minimumAge: "", maximumAge: "", minimumHeightCm: "", maximumHeightCm: "",
         difficulty: "", otherRequirements: "",
@@ -167,6 +167,7 @@ export default function ActivityFormPage({ activity, onBack, onSaved }) {
             weekdays: ["WEEKLY", "BIWEEKLY", "SEASONAL"].includes(form.recurrence) ? form.weekdays : [],
             capacity: Number(form.capacity), durationMinutes: Number(form.durationMinutes),
             price: Number(form.price),
+            refundPercentage: Number(form.refundPercentage),
             bookingCutoffMinutes: cutoffMinutes(form.bookingCutoffValue, form.bookingCutoffUnit),
             cancellationCutoffMinutes: cutoffMinutes(form.cancellationCutoffValue, form.cancellationCutoffUnit),
             equipment: form.equipment,
@@ -311,6 +312,11 @@ export default function ActivityFormPage({ activity, onBack, onSaved }) {
                             <label className="form-field">Precio por persona (UYU)
                                 <input type="number" min="0" max="99999999.99" step="0.01" value={form.price}
                                     onChange={event => change("price", event.target.value)} placeholder="0 si es gratis" required />
+                            </label>
+                            <label className="form-field">Porcentaje de reembolso (%)
+                                <input type="number" min="0" max="100" step="1" inputMode="numeric" value={form.refundPercentage}
+                                    onChange={event => change("refundPercentage", event.target.value)} required />
+                                <small className="field-hint">Se devuelve si el turista cancela dentro del plazo permitido.</small>
                             </label>
                             <label className="form-field">Cierre de reservas
                                 <div className="cutoff-input-group"><input aria-label="Tiempo de cierre de reservas" type="number" min="0" max="43200" value={form.bookingCutoffValue}

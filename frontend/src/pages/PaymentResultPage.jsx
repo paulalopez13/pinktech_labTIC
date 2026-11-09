@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { cancelStripeCheckout, verifyStripeCheckout } from "../services/activityService";
 
-export default function PaymentResultPage({ onViewReservations, onHome }) {
+export default function PaymentResultPage({ onViewReservations, onHome, onLogin }) {
     const params = new URLSearchParams(window.location.search);
     const outcome = params.get("payment");
     const reservationId = params.get("reservationId");
@@ -35,6 +35,11 @@ export default function PaymentResultPage({ onViewReservations, onHome }) {
             <p>{state.loading ? "Estamos consultando el estado de la operación con Stripe." : state.paid ? "El pago se aprobó y tu lugar quedó reservado." : state.paymentStatus === "EXPIRED" ? "La reserva venció y los cupos se liberaron. Si Stripe llegó a cobrar el pago, se tramita su devolución." : state.cancelled ? "No se realizó el cobro. Tu lugar queda apartado durante el tiempo restante para que puedas volver a intentarlo." : state.error || "Stripe todavía no confirmó el pago. Podés revisar el estado en Mis reservas."}</p>
         </div>
         {state.error && <div className="form-message error" role="alert">{state.error}</div>}
-        {!state.loading && <div className="activity-step-actions"><button className="submit-button" type="button" onClick={onViewReservations}>Ver mis reservas</button><button className="activity-step-back" type="button" onClick={onHome}>Volver al inicio</button></div>}
+        {!state.loading && <div className="activity-step-actions">
+            {state.error?.includes("Iniciá sesión como turista")
+                ? <button className="submit-button" type="button" onClick={onLogin}>Iniciar sesión para consultar el pago</button>
+                : <button className="submit-button" type="button" onClick={onViewReservations}>Ver mis reservas</button>}
+            <button className="activity-step-back" type="button" onClick={onHome}>Volver al inicio</button>
+        </div>}
     </main>;
 }

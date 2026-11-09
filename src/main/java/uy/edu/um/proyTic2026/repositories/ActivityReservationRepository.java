@@ -27,6 +27,7 @@ public interface ActivityReservationRepository extends JpaRepository<ActivityRes
     boolean existsByActivity_Id(Long activityId);
     boolean existsByActivity_IdAndTourist_IdAndActivityStart(Long activityId, Long touristId, LocalDateTime activityStart);
     Optional<ActivityReservation> findByActivity_IdAndTourist_IdAndActivityStart(Long activityId, Long touristId, LocalDateTime activityStart);
+    List<ActivityReservation> findAllByActivity_IdAndTourist_IdAndActivityStartOrderByReservedAtDesc(Long activityId, Long touristId, LocalDateTime activityStart);
     boolean existsByActivity_IdAndTourist_Id(Long activityId, Long touristId);
     List<ActivityReservation> findAllByTourist_IdOrderByActivityStartDesc(Long touristId);
     List<ActivityReservation> findAllByActivity_IdOrderByActivityStartAsc(Long activityId);

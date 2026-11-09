@@ -90,6 +90,9 @@ public class Activity {
     @Column(nullable = false)
     private Integer cancellationCutoffMinutes = 1440;
 
+    @Column(nullable = false, columnDefinition = "integer default 100")
+    private Integer refundPercentage = 100;
+
     @Column(length = 500)
     private String equipment;
 

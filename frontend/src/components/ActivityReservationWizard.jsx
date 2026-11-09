@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { getActivityAvailabilityBatch, createReservationHold, createStripeCheckout, joinActivityWaitlist } from "../services/activityService";
+import { getActivityAvailabilityBatch, createReservationHold, createStripePaymentIntent, verifyStripePaymentIntent, joinActivityWaitlist } from "../services/activityService";
 import DocumentInput from "./DocumentInput";
 import PhoneInput, { phoneCountries } from "./PhoneInput";
+import StripePaymentModal from "./StripePaymentModal";
 import { getWeatherPreview } from "../services/weatherService";
 
 const dateKey = value => value.slice(0, 10);
@@ -29,6 +30,7 @@ export default function ActivityReservationWizard({ activity, currentUser, onBac
     const [reservationHold, setReservationHold] = useState(null);
     const [secondsLeft, setSecondsLeft] = useState(7200);
     const [waitlistMode, setWaitlistMode] = useState(false);
+    const [paymentForm, setPaymentForm] = useState(null);
     const occurrences = activity.upcomingOccurrences || [];
     const daySlots = useMemo(() => {
         const map = new Map();
@@ -162,13 +164,21 @@ export default function ActivityReservationWizard({ activity, currentUser, onBac
         if (secondsLeft <= 0) return setError("Se terminó el tiempo para pagar. La reserva expiró y los cupos quedaron liberados.");
         setBusy(true); setError("");
         try {
-            const result = await createStripeCheckout(reservationHold.id);
-            if (result.paymentStatus === "APPROVED") onReserved?.({ reservation: result, total: result.total }, contact.email.trim());
-            else if (result.paymentStatus === "EXPIRED") setError("La reserva venció y los cupos se liberaron. Si Stripe llegó a cobrar, se tramita la devolución.");
-            else if (result.url) window.location.assign(result.url);
-            else setError("Stripe no devolvió un enlace de pago. Volvé a intentarlo.");
+            const result = await createStripePaymentIntent(reservationHold.id);
+            if (result.paymentStatus === "APPROVED") {
+                onReserved?.({ reservation: result.reservation, total: result.reservation?.total || priceTotal }, contact.email.trim());
+            } else {
+                setPaymentForm({ payment: result, reservation: {
+                    ...reservationHold, activityName: activity.name, total: priceTotal, participantCount: count,
+                    contactEmail: contact.email.trim(), paymentExpiresAt: reservationHold.paymentExpiresAt,
+                } });
+            }
         } catch (payError) { setError(payError.message); }
         finally { setBusy(false); }
+    }
+
+    async function verifyPayment(paymentIntentId) {
+        return verifyStripePaymentIntent(reservationHold.id, paymentIntentId);
     }
 
     const timerLabel = secondsLeft <= 600
@@ -269,6 +279,10 @@ export default function ActivityReservationWizard({ activity, currentUser, onBac
 
         {error && <div className="form-message error" role="alert">{error}</div>}
         <div className="activity-step-actions">{step > 0 && <button className="activity-step-back" type="button" onClick={() => { setError(""); setStep(value => value - 1); }}>Volver</button>}{step < 2 && <button className="submit-button" type="button" disabled={busy} onClick={next}>{busy ? "Enviando…" : step === 1 && waitlistMode ? "Anotarme a la lista de espera" : priceTotal === 0 && step === 1 ? "Confirmar reserva gratis" : "Siguiente"}</button>}</div>
+        {paymentForm && <StripePaymentModal payment={paymentForm.payment} reservation={paymentForm.reservation}
+            onVerify={verifyPayment}
+            onPaid={reservation => onReserved?.({ reservation, total: reservation.total }, contact.email.trim())}
+            onClose={() => setPaymentForm(null)} />}
     </section>;
 }
 

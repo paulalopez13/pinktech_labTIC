@@ -44,7 +44,7 @@ public class TouristService {
         tourist.setDocumentType(request.getDocumentType());
         tourist.setAge(request.getAge());
         touristRepository.save(tourist);
-        accountEmailService.touristRegistered(tourist.getEmail(), tourist.getUsername());
+        AfterCommit.run(() -> accountEmailService.touristRegistered(tourist.getEmail(), tourist.getUsername()));
     }
 
     private void validateDocument(uy.edu.um.proyTic2026.entities.DocumentType type, String number) {

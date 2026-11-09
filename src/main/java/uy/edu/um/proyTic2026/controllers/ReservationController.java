@@ -106,6 +106,30 @@ public class ReservationController {
         }
     }
 
+    @PostMapping("/{reservationId}/stripe-payment-intent")
+    public ResponseEntity<?> createStripePaymentIntent(@PathVariable Long reservationId, HttpSession session) {
+        Tourist tourist = tourist(session);
+        if (tourist == null) return forbidden("Iniciá sesión como turista para pagar una reserva.");
+        try {
+            return ResponseEntity.ok(activityService.createStripePaymentIntent(tourist.getId(), reservationId));
+        } catch (IllegalArgumentException error) {
+            return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
+        }
+    }
+
+    @PostMapping("/{reservationId}/stripe-payment-intent/verify")
+    public ResponseEntity<?> verifyStripePaymentIntent(@PathVariable Long reservationId,
+                                                        @RequestParam String paymentIntentId,
+                                                        HttpSession session) {
+        Tourist tourist = tourist(session);
+        if (tourist == null) return forbidden("Iniciá sesión como turista para consultar el pago.");
+        try {
+            return ResponseEntity.ok(activityService.verifyStripePaymentIntent(tourist.getId(), reservationId, paymentIntentId));
+        } catch (IllegalArgumentException error) {
+            return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
+        }
+    }
+
     @GetMapping("/{reservationId}/stripe-checkout")
     public ResponseEntity<?> verifyStripeCheckout(@PathVariable Long reservationId, @RequestParam String sessionId, HttpSession session) {
         Tourist tourist = tourist(session);

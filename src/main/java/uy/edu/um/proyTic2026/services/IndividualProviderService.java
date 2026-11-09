@@ -55,7 +55,7 @@ public class IndividualProviderService {
         individual.setDocumentType(request.getDocumentType());
         individual.setStatus(ProviderStatus.PENDING);
         individualProviderRepository.save(individual);
-        accountEmailService.providerRequested(individual.getEmail(), individual.getUsername());
+        AfterCommit.run(() -> accountEmailService.providerRequested(individual.getEmail(), individual.getUsername()));
     }
 
     private String optional(String value) {

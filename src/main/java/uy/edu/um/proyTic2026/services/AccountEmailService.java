@@ -128,6 +128,17 @@ public class AccountEmailService {
                 "casa-pueblo.png");
     }
 
+    public void reservationCancelledAndRefunded(String email, String contactName, String activityName, BigDecimal refundAmount) {
+        String amount = "$U " + refundAmount.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+        String refundLine = refundAmount.signum() > 0
+                ? "Reembolso procesado: -" + amount + ". El plazo de acreditación depende del medio de pago."
+                : "La reserva quedó cancelada. No se generó un reembolso porque no se había realizado un cobro o el porcentaje definido es 0%.";
+        send(email, "Reserva cancelada · " + activityName,
+                "Hola " + (contactName == null ? "" : contactName) + "\n\n"
+                        + "Tu reserva de “" + activityName + "” fue cancelada correctamente.\n"
+                        + refundLine, "casa-pueblo.png");
+    }
+
     public void waitlistOffer(String email, String contactName, String activityName, LocalDateTime activityStart, int participants) {
         String date = activityStart.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM 'de' yyyy, HH:mm", new Locale("es", "UY")));
         send(email, "Se liberaron cupos · " + activityName,

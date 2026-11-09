@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { answerWaitlistOffer, cancelReservation, createStripeCheckout, getActivities, getMyReservations, rescheduleReservation, submitActivityReview } from "../services/activityService";
+import { answerWaitlistOffer, cancelReservation, createStripePaymentIntent, getActivities, getMyReservations, rescheduleReservation, submitActivityReview, verifyStripePaymentIntent } from "../services/activityService";
 import BrandLogo from "../components/BrandLogo";
 import RatingStars from "../components/RatingStars";
+import StripePaymentModal from "../components/StripePaymentModal";
 
 const priceText = value => Number(value) === 0 ? "Gratis" : `$U ${new Intl.NumberFormat("es-UY", { maximumFractionDigits: 2 }).format(Number(value))}`;
 const dateText = value => new Date(value).toLocaleString("es-UY", { dateStyle: "medium", timeStyle: "short" });
@@ -19,6 +20,7 @@ export default function MyReservationsPage({ onBack, onOpenActivity }) {
     const [reviewing, setReviewing] = useState(null);
     const [reviewRating, setReviewRating] = useState(5);
     const [reviewComment, setReviewComment] = useState("");
+    const [paymentForm, setPaymentForm] = useState(null);
 
     useEffect(() => {
         let active = true;
@@ -59,11 +61,19 @@ export default function MyReservationsPage({ onBack, onOpenActivity }) {
     async function pay(reservation) {
         setBusyId(reservation.id); setError("");
         try {
-            const result = await createStripeCheckout(reservation.id);
-            if (result.url) window.location.assign(result.url);
-            else if (result.paymentStatus === "APPROVED") setReservations(items => items.map(item => item.id === reservation.id ? { ...item, paymentStatus: "APPROVED" } : item));
+            const result = await createStripePaymentIntent(reservation.id);
+            if (result.paymentStatus === "APPROVED") {
+                setReservations(await getMyReservations());
+            } else {
+                setPaymentForm({ reservation, payment: result });
+            }
         } catch (payError) { setError(payError.message); }
         finally { setBusyId(null); }
+    }
+    async function verifyPaymentIntent(paymentIntentId) {
+        const updated = await verifyStripePaymentIntent(paymentForm.reservation.id, paymentIntentId);
+        setReservations(await getMyReservations());
+        return updated;
     }
     async function cancel(reservation) {
         if (!window.confirm("¿Querés cancelar esta reserva? Los cupos se liberarán.")) return;
@@ -139,6 +149,8 @@ export default function MyReservationsPage({ onBack, onOpenActivity }) {
                 <p>{dateText(reservation.activityStart)}</p>
                 {(isPending || isWaitlisted || isWaitlistOffered) && <strong className={`reservation-status ${isExpired ? "expired" : "pending"}`}>{status}</strong>}
                 {!isPending && <strong className={`reservation-status ${isConfirmed ? "confirmed" : "expired"}`}>{status}</strong>}
+                {reservation.paymentStatus === "CANCELLED" && Number(reservation.refundAmount) > 0 &&
+                    <p className="reservation-refund">Reembolso acreditado: −{priceText(reservation.refundAmount)}</p>}
                 {!isUpcoming && isConfirmed && reservation.reviewAllowed && !reservation.reviewed && <button className="reservation-review-link" type="button" onClick={() => { setReviewing(reservation); setReviewRating(5); setReviewComment(""); }}>Dejar reseña</button>}
                 {editingId === reservation.id && <div className="reservation-reschedule-form"><label>Nuevo día y horario<select value={newDate} onChange={event => setNewDate(event.target.value)}><option value="">Elegí un horario</option>{choices.map(slot => <option key={slot} value={slot}>{dateText(slot)}</option>)}</select></label><button type="button" disabled={busyId === reservation.id || !newDate} onClick={() => saveDate(reservation)}>Guardar</button><button type="button" onClick={() => setEditingId(null)}>Cerrar</button></div>}
             </div>
@@ -163,5 +175,7 @@ export default function MyReservationsPage({ onBack, onOpenActivity }) {
         </section>
         {reviewing?.unavailable && <div className="review-modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setReviewing(null); }}><section className="review-modal" role="dialog" aria-modal="true" aria-labelledby="review-unavailable-title"><button className="review-modal-close" type="button" onClick={() => setReviewing(null)} aria-label="Cerrar">×</button><h2 id="review-unavailable-title">Actividad no disponible</h2><p>“{reviewing.activityName}” ya no está publicada o no se puede abrir.</p><button className="submit-button" type="button" onClick={() => setReviewing(null)}>Entendido</button></section></div>}
         {reviewing && !reviewing.unavailable && <div className="review-modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setReviewing(null); }}><section className="review-modal" role="dialog" aria-modal="true" aria-labelledby="review-modal-title"><button className="review-modal-close" type="button" onClick={() => setReviewing(null)} aria-label="Cerrar">×</button><h2 id="review-modal-title">Tu reseña</h2><p>{reviewing.activityName}</p><label className="review-rating-label">Tu puntuación<RatingStars rating={reviewRating} onChange={setReviewRating} label="Elegí una puntuación de media estrella a cinco estrellas" /><span>{reviewRating.toFixed(1)} / 5</span></label><label className="form-field">Comentario<textarea rows="5" maxLength="1500" value={reviewComment} onChange={event => setReviewComment(event.target.value)} placeholder="Contá cómo fue tu experiencia" /></label><small className="review-character-count">{reviewComment.length}/1500</small><div className="review-modal-actions"><button type="button" className="activity-step-back" onClick={() => { setReviewing(null); setError(""); }}>Cancelar</button><button type="button" className="submit-button" disabled={busyId === reviewing.id || !reviewComment.trim()} onClick={submitReview}>{busyId === reviewing.id ? "Enviando…" : "Confirmar"}</button></div></section></div>}
+        {paymentForm && <StripePaymentModal payment={paymentForm.payment} reservation={paymentForm.reservation}
+            onVerify={verifyPaymentIntent} onClose={() => { setPaymentForm(null); getMyReservations().then(setReservations).catch(() => {}); }} />}
     </main>;
 }

@@ -1254,6 +1254,7 @@ button:focus-visible {
 .reservation-participant-count { display: flex; align-items: center; gap: 5px; color: #61766e; font-size: 14px; font-weight: 700; }
 .reservation-participant-count svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .reservation-card-price { color: #174e4a; font-size: 17px; }
+.reservation-refund { margin: 0; color: #28734d; font-size: 13px; font-weight: 700; }
 .reservation-payment-timer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 18px; margin: 16px 0; padding: 14px 18px; border: 1px solid #d2e4d7; border-radius: 12px; background: #f1f8f2; color: #245747; }
 .reservation-payment-timer strong { font-size: 22px; font-variant-numeric: tabular-nums; }
 .reservation-payment-timer small { flex-basis: 100%; color: #61766e; }
@@ -1319,6 +1320,23 @@ button:focus-visible {
 .review-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .review-modal-actions button, .review-modal > .submit-button { min-width: 120px; }
 .my-activity-add { margin-bottom: 20px; }
+
+.stripe-payment-backdrop { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center; padding: 20px; background: rgb(15 34 29 / 58%); }
+.stripe-payment-modal { position: relative; width: min(100%, 520px); max-height: min(92vh, 760px); overflow: auto; padding: 32px; border: 1px solid #d7e5dc; border-radius: 20px; background: #fffdf7; box-shadow: 0 22px 80px rgb(16 45 36 / 28%); }
+.stripe-payment-modal h2 { margin: 8px 34px 8px 0; color: #174e4a; font-size: 28px; }
+.stripe-payment-modal > p { color: #61766e; }
+.stripe-payment-close { position: absolute; top: 12px; right: 16px; width: 38px; height: 38px; border: 0; border-radius: 50%; background: #edf4ef; color: #35584d; font-size: 28px; cursor: pointer; }
+.stripe-payment-activity { margin: 0 0 16px; }
+.stripe-payment-summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid #dce7de; border-bottom: 1px solid #dce7de; color: #35584d; }
+.stripe-payment-summary strong { color: #087b82; font-size: 20px; }
+.stripe-payment-timer { margin: 12px 0; color: #a15b17 !important; font-size: 14px; font-weight: 700; }
+.stripe-card-label { display: block; margin: 20px 0 8px; color: #35584d; font-weight: 700; }
+.stripe-card-element { min-height: 48px; padding: 14px; border: 1px solid #c9ddd1; border-radius: 10px; background: #fff; }
+.stripe-payment-security { margin: 9px 0 16px; color: #71837e; font-size: 12px; line-height: 1.5; }
+.stripe-payment-modal .submit-button { width: 100%; margin-top: 12px; }
+.stripe-payment-success-icon { display: grid; width: 54px; height: 54px; place-items: center; margin: 0 auto 14px; border-radius: 50%; background: #e3f3e8; color: #16824b; font-size: 30px; font-weight: 800; }
+.stripe-payment-modal:has(.stripe-payment-success-icon) { text-align: center; }
+.stripe-payment-modal:has(.stripe-payment-success-icon) h2 { margin-right: 0; }
 
 /* Searchable activity cards and public profiles */
 .activity-price-filter { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }

@@ -7,6 +7,7 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -56,6 +57,9 @@ public class ActivityReservation {
 
     @Column(name = "payment_expires_at")
     private Instant paymentExpiresAt;
+
+    @Column(name = "refund_amount", precision = 10, scale = 2)
+    private BigDecimal refundAmount;
 
     @Column(name = "waitlist_offered_at")
     private Instant waitlistOfferedAt;

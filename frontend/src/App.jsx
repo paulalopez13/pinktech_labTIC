@@ -66,7 +66,8 @@ function App() {
     }, [selectedType, activityReturn.id, activityReturn.category]);
 
     function navigate(page, notice = "") {
-        if (page !== "resetPassword" && (window.location.search.includes("token=") || window.location.search.includes("payment="))) {
+        const preservePaymentReturn = page === "login" && window.location.search.includes("payment=");
+        if (page !== "resetPassword" && !preservePaymentReturn && (window.location.search.includes("token=") || window.location.search.includes("payment="))) {
             window.history.replaceState({}, "", window.location.pathname);
         }
         setRegistrationMessage("");
@@ -87,7 +88,7 @@ function App() {
         setRegistrationMessage("");
         setLoginNotice("");
         setDashboardNotice("");
-        setSelectedType(activityReturn.id ? "activities" : null);
+        setSelectedType(window.location.search.includes("payment=") ? "paymentResult" : activityReturn.id ? "activities" : null);
         window.scrollTo(0, 0);
     }
 
@@ -141,7 +142,7 @@ function App() {
         page = <ResetPasswordPage token={new URLSearchParams(window.location.search).get("token")}
             onBack={() => navigate("login")} onRequestLink={() => navigate("forgotPassword")} />;
     } else if (selectedType === "paymentResult") {
-        page = <PaymentResultPage onViewReservations={() => navigate("reservations")} onHome={() => navigate(null)} />;
+        page = <PaymentResultPage onViewReservations={() => navigate("reservations")} onHome={() => navigate(null)} onLogin={() => navigate("login")} />;
     } else if (selectedType === "profile") {
         page = <ProfilePage onBack={() => navigate(null)} onUpdated={updated => {
             const nextUser = { ...currentUser, username: updated.username, email: updated.email,

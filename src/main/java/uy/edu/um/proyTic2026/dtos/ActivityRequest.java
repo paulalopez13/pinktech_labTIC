@@ -26,6 +26,7 @@ public record ActivityRequest(
         @NotNull @Min(1) @Max(1440) Integer durationMinutes,
         @NotNull @Min(0) @Max(43200) Integer bookingCutoffMinutes,
         @NotNull @Min(0) @Max(43200) Integer cancellationCutoffMinutes,
+        @NotNull @Min(0) @Max(100) Integer refundPercentage,
         @Size(max = 500) String equipment,
         @Min(0) @Max(120) Integer minimumAge,
         @Min(0) @Max(120) Integer maximumAge,

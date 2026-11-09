@@ -8,7 +8,8 @@ import java.time.Instant;
 public record ReservationResponse(Long id, Long activityId, String activityName, String department,
                                   String city, String location, LocalDateTime activityStart,
                                   int durationMinutes, int cancellationCutoffMinutes, int participantCount, String paymentStatus, BigDecimal total,
-                                  boolean reviewAllowed, boolean reviewed, String contactEmail, Instant paymentExpiresAt) {
+                                  boolean reviewAllowed, boolean reviewed, String contactEmail, Instant paymentExpiresAt,
+                                  BigDecimal refundAmount) {
     public static ReservationResponse from(ActivityReservation reservation, boolean reviewed) {
         var activity = reservation.getActivity();
         boolean reviewAllowed = reservation.getActivityStart().plusMinutes(activity.getDurationMinutes())
@@ -18,6 +19,6 @@ public record ReservationResponse(Long id, Long activityId, String activityName,
                 activity.getDurationMinutes(), activity.getCancellationCutoffMinutes() == null ? 1440 : activity.getCancellationCutoffMinutes(), reservation.getParticipantCount() == null ? 1 : reservation.getParticipantCount(),
                 reservation.getPaymentStatus() == null ? "APPROVED" : reservation.getPaymentStatus().name(),
                 activity.getPrice().multiply(BigDecimal.valueOf(reservation.getParticipantCount() == null ? 1 : reservation.getParticipantCount())), reviewAllowed, reviewed,
-                reservation.getContactEmail(), reservation.getPaymentExpiresAt());
+                reservation.getContactEmail(), reservation.getPaymentExpiresAt(), reservation.getRefundAmount());
     }
 }

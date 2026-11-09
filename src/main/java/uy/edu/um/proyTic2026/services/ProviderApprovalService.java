@@ -41,7 +41,9 @@ public class ProviderApprovalService {
         }
         provider.setStatus(decision);
         if (decision == ProviderStatus.APPROVED) {
-            accountEmailService.providerApproved(provider.getEmail(), provider.getUsername());
+            String email = provider.getEmail();
+            String username = provider.getUsername();
+            AfterCommit.run(() -> accountEmailService.providerApproved(email, username));
         }
         return ProviderApplicationResponse.from(provider);
     }

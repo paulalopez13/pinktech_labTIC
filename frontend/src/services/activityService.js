@@ -57,6 +57,8 @@ export const deleteActivity = id => mutation(`/activities/${id}`, "DELETE");
 export const createReservationHold = (id, reservation) => mutation(`/reservations/activities/${id}/hold`, "POST", reservation);
 export const createStripeCheckout = id => mutation(`/reservations/${id}/stripe-checkout`, "POST");
 export const verifyStripeCheckout = (id, sessionId) => request(`/reservations/${id}/stripe-checkout?sessionId=${encodeURIComponent(sessionId)}`);
+export const createStripePaymentIntent = id => mutation(`/reservations/${id}/stripe-payment-intent`, "POST");
+export const verifyStripePaymentIntent = (id, paymentIntentId) => mutation(`/reservations/${id}/stripe-payment-intent/verify?paymentIntentId=${encodeURIComponent(paymentIntentId)}`, "POST");
 export const cancelStripeCheckout = id => mutation(`/reservations/${id}/stripe-checkout/cancel`, "POST");
 export const joinActivityWaitlist = (id, reservation) => mutation(`/reservations/activities/${id}/waitlist`, "POST", reservation);
 export const cancelReservation = id => mutation(`/reservations/${id}/cancel`, "POST");
