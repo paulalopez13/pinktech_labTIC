@@ -86,7 +86,7 @@ export default function UruguayPhotoCarousel() {
             const publishedPhotos = activities.flatMap(activity => (activity.photos || []).map(photo => ({
                 title: activity.name,
                 place: `${activity.city} · ${activity.department}`,
-                src: `http://${window.location.hostname}:8080${photo.url}`,
+                src: `${photo.url}`,
                 alt: `${activity.name}, ${activity.city}, ${activity.department}`,
             })));
             setActivityPhotos(publishedPhotos);

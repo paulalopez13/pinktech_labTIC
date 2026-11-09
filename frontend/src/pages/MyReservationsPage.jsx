@@ -132,7 +132,7 @@ export default function MyReservationsPage({ onBack, onOpenActivity }) {
         const photo = activities.find(activity => activity.id === reservation.activityId)?.photos?.[0];
         return <article className={`reservation-summary-card${isPending && !isExpired ? " pending-payment" : ""}`} key={reservation.id}>
             <button className="reservation-card-photo reservation-activity-open" type="button" onClick={() => openActivity(reservation)} aria-label={`Abrir actividad ${reservation.activityName}`}>{photo
-                ? <img src={`http://${window.location.hostname}:8080${photo.url}`} alt="" loading="lazy" />
+                ? <img src={`${photo.url}`} alt="" loading="lazy" />
                 : <div className="reservation-card-photo-placeholder"><BrandLogo /></div>}</button>
             <div className="reservation-card-main"><h2><button className="reservation-activity-title" type="button" onClick={() => openActivity(reservation)}>{reservation.activityName}</button></h2>
                 <p>{reservation.city}, {reservation.department} · {reservation.location}</p>

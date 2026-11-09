@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import uy.edu.um.proyTic2026.dtos.GroupReservationRequest;
+import uy.edu.um.proyTic2026.dtos.ReservationSeatHoldRequest;
 import uy.edu.um.proyTic2026.dtos.RescheduleReservationRequest;
 import uy.edu.um.proyTic2026.dtos.ReviewRequest;
 import uy.edu.um.proyTic2026.entities.Tourist;
@@ -38,6 +39,45 @@ public class ReservationController {
         if (tourist == null) return forbidden("Iniciá sesión como turista para reservar actividades.");
         try {
             return ResponseEntity.status(HttpStatus.CREATED).body(activityService.reserveSandbox(tourist.getId(), activityId, request));
+        } catch (IllegalArgumentException error) {
+            return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
+        }
+    }
+
+    @PostMapping("/activities/{activityId}/seat-hold")
+    public ResponseEntity<?> createSeatHold(@PathVariable Long activityId,
+                                            @Valid @RequestBody ReservationSeatHoldRequest request,
+                                            HttpSession session) {
+        Tourist tourist = tourist(session);
+        if (tourist == null) return forbidden("Iniciá sesión como turista para reservar actividades.");
+        try {
+            return ResponseEntity.status(HttpStatus.CREATED).body(activityService.createSeatHold(tourist.getId(), activityId, request));
+        } catch (IllegalArgumentException error) {
+            return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
+        }
+    }
+
+    @PutMapping("/{reservationId}/seat-hold")
+    public ResponseEntity<?> updateSeatHold(@PathVariable Long reservationId,
+                                            @Valid @RequestBody ReservationSeatHoldRequest request,
+                                            HttpSession session) {
+        Tourist tourist = tourist(session);
+        if (tourist == null) return forbidden("Iniciá sesión como turista para reservar actividades.");
+        try {
+            return ResponseEntity.ok(activityService.updateSeatHold(tourist.getId(), reservationId, request));
+        } catch (IllegalArgumentException error) {
+            return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
+        }
+    }
+
+    @PutMapping("/{reservationId}/details")
+    public ResponseEntity<?> completeHoldDetails(@PathVariable Long reservationId,
+                                                 @Valid @RequestBody GroupReservationRequest request,
+                                                 HttpSession session) {
+        Tourist tourist = tourist(session);
+        if (tourist == null) return forbidden("Iniciá sesión como turista para completar la reserva.");
+        try {
+            return ResponseEntity.ok(activityService.completeSeatHold(tourist.getId(), reservationId, request));
         } catch (IllegalArgumentException error) {
             return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
         }

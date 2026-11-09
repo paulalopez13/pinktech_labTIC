@@ -1,6 +1,6 @@
 import { getCsrfToken } from "./authService";
 
-const PROFILE_URL = `http://${window.location.hostname}:8080/api/profile`;
+const PROFILE_URL = "/api/profile";
 
 async function readResponse(response) {
     const text = await response.text();

@@ -95,7 +95,7 @@ export default function ActivityDetailPage({ activity, currentUser, isOwner = fa
         <article className="activity-detail-card">
             <div className="activity-preview-gallery activity-detail-gallery">
                 {selectedPhoto
-                    ? <img src={`http://${window.location.hostname}:8080${selectedPhoto.url}`} alt={selectedPhoto.fileName || activity.name} />
+                    ? <img src={`${selectedPhoto.url}`} alt={selectedPhoto.fileName || activity.name} />
                     : <div className="activity-detail-no-photo"><span aria-hidden="true">✳</span><p>Esta actividad todavía no tiene fotos.</p></div>}
                 {photos.length > 1 && <>
                     <button className="gallery-arrow previous" type="button" aria-label="Foto anterior"

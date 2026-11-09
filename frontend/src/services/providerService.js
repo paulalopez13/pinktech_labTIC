@@ -1,4 +1,4 @@
-const API_URL = `http://${window.location.hostname}:8080/api`;
+const API_URL = "/api";
 const COMPANY_REGISTRATION_URL = `${API_URL}/providers/companies/register`;
 
 export async function registerCompany(companyData) {
@@ -15,20 +15,26 @@ export async function registerTourist(touristData) {
 
 async function registerProvider(url, providerData) {
     let response;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
     try {
         response = await fetch(url, {
             method: "POST",
-
             headers: {
                 "Content-Type": "application/json",
             },
-
             body: JSON.stringify(providerData),
+            signal: controller.signal,
         });
-    } catch {
+    } catch (error) {
+        if (error.name === "AbortError") {
+            throw new Error("El servidor está demorando en responder. Revisá que Spring Boot esté iniciado e intentá nuevamente.");
+        }
         throw new Error(
-            "No se pudo conectar con el servidor. Verificá que Spring Boot esté ejecutándose en http://localhost:8080."
+            "No se pudo conectar con el servidor. Verificá que la aplicación esté iniciada."
         );
+    } finally {
+        clearTimeout(timeout);
     }
 
     const responseText = await response.text();

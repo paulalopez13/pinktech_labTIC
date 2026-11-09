@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getActivityAvailability, createReservationHold, createStripeCheckout, joinActivityWaitlist } from "../services/activityService";
+import { getActivityAvailabilityBatch, createReservationHold, createStripeCheckout, joinActivityWaitlist } from "../services/activityService";
 import DocumentInput from "./DocumentInput";
 import PhoneInput, { phoneCountries } from "./PhoneInput";
 import { getWeatherPreview } from "../services/weatherService";
@@ -38,17 +38,22 @@ export default function ActivityReservationWizard({ activity, currentUser, onBac
         });
         return map;
     }, [occurrences]);
-
     useEffect(() => {
         let active = true;
         setLoading(true);
-        Promise.all(occurrences.map(async slot => {
-            try { return [slot, (await getActivityAvailability(activity.id, slot)).remaining]; }
-            catch { return [slot, 0]; }
-        })).then(entries => { if (active) setAvailability(Object.fromEntries(entries)); })
+        if (!occurrences.length) {
+            setAvailability({});
+            setLoading(false);
+            return () => { active = false; };
+        }
+        getActivityAvailabilityBatch(activity.id, occurrences)
+            .then(entries => {
+                if (active) setAvailability(Object.fromEntries(entries.map(entry => [entry.activityStart, entry.remaining])));
+            })
+            .catch(() => { if (active) setAvailability({}); })
             .finally(() => active && setLoading(false));
         return () => { active = false; };
-    }, [activity.id, count, occurrences]);
+    }, [activity.id, occurrences]);
 
     useEffect(() => {
         if (step !== 2 || reservationHold) return;

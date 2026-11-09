@@ -1,6 +1,6 @@
 import { getCsrfToken } from "./authService";
 
-const API_URL = `http://${window.location.hostname}:8080/api/admin/administrators`;
+const API_URL = "/api/admin/administrators";
 
 export async function createAdministrator(data) {
     const csrf = await getCsrfToken();

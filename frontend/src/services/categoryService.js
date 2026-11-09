@@ -1,6 +1,6 @@
 import { getCsrfToken } from "./authService";
 
-const API_URL = `http://${window.location.hostname}:8080/api/categories`;
+const API_URL = "/api/categories";
 
 async function readResponse(response) {
     const text = await response.text();

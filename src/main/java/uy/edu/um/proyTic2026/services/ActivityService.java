@@ -130,6 +130,177 @@ public class ActivityService {
         return Math.max(0, activity.getCapacity() - (int) reservationRepository.countBookedParticipants(activityId, occurrence, Instant.now()));
     }
 
+    @Transactional
+    public ReservationResponse createSeatHold(Long touristId, Long activityId, ReservationSeatHoldRequest request) {
+        Tourist tourist = userRepository.findById(touristId).filter(Tourist.class::isInstance)
+                .map(Tourist.class::cast).orElseThrow(() -> new IllegalArgumentException("Solo los turistas pueden reservar."));
+        Activity activity = activityRepository.findByIdForUpdate(activityId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró la actividad."));
+        validateHoldSlot(activity, request.activityStart(), request.participantCount());
+        Instant now = Instant.now();
+        ActivityReservation reservation = reservationRepository.findByActivity_IdAndTourist_IdAndActivityStart(
+                activityId, touristId, request.activityStart()).orElse(null);
+        if (reservation != null && reservation.getPaymentStatus() != ReservationPaymentStatus.PENDING_PAYMENT
+                && reservation.getPaymentStatus() != ReservationPaymentStatus.PAYMENT_RETRY_PENDING
+                && reservation.getPaymentStatus() != ReservationPaymentStatus.CANCELLED
+                && reservation.getPaymentStatus() != ReservationPaymentStatus.EXPIRED) {
+            throw new IllegalArgumentException("Ya tenés una reserva para ese horario.");
+        }
+        if (reservation != null && reservation.getPaymentOrderId() != null) {
+            throw new IllegalArgumentException("Ya comenzaste el pago de esta reserva.");
+        }
+        long reserved = reservationRepository.countBookedParticipants(activityId, request.activityStart(), now);
+        if (reservation != null && isActiveSeatHold(reservation, now)) {
+            reserved -= reservation.getParticipantCount() == null ? 1 : reservation.getParticipantCount();
+        }
+        if (reserved + request.participantCount() > activity.getCapacity()) {
+            throw new IllegalArgumentException("No quedan suficientes cupos para todas las personas.");
+        }
+        boolean reused = reservation != null;
+        if (!reused) {
+            reservation = new ActivityReservation();
+            reservation.setActivity(activity);
+            reservation.setTourist(tourist);
+            reservation.setActivityStart(request.activityStart());
+        }
+        boolean expired = reservation.getPaymentExpiresAt() == null || !reservation.getPaymentExpiresAt().isAfter(now);
+        reservation.setParticipantCount(request.participantCount());
+        reservation.setPaymentStatus(ReservationPaymentStatus.PENDING_PAYMENT);
+        if (!reused || expired) reservation.setPaymentExpiresAt(now.plus(Duration.ofMinutes(10)));
+        if (!reused || expired) {
+            reservation.setPaymentOrderId(null);
+            reservation.setContactName(null);
+            reservation.setContactEmail(null);
+            reservation.setContactPhone(null);
+            reservation.getParticipants().clear();
+        }
+        return ReservationResponse.from(reservationRepository.save(reservation), false);
+    }
+
+    @Transactional
+    public ReservationResponse updateSeatHold(Long touristId, Long reservationId, ReservationSeatHoldRequest request) {
+        ActivityReservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró el apartado de cupos."));
+        if (!reservation.getTourist().getId().equals(touristId)) throw new IllegalArgumentException("Este apartado no te pertenece.");
+        if (reservation.getPaymentOrderId() != null) throw new IllegalArgumentException("El pago ya fue iniciado y no se puede cambiar el horario.");
+        if (reservation.getPaymentStatus() != ReservationPaymentStatus.PENDING_PAYMENT
+                && reservation.getPaymentStatus() != ReservationPaymentStatus.CANCELLED
+                && reservation.getPaymentStatus() != ReservationPaymentStatus.EXPIRED) {
+            throw new IllegalArgumentException("Este apartado ya no se puede modificar.");
+        }
+        Activity activity = activityRepository.findByIdForUpdate(reservation.getActivity().getId())
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró la actividad."));
+        validateHoldSlot(activity, request.activityStart(), request.participantCount());
+        ActivityReservation other = reservationRepository.findByActivity_IdAndTourist_IdAndActivityStart(
+                activity.getId(), touristId, request.activityStart()).orElse(null);
+        if (other != null && !other.getId().equals(reservationId)) {
+            throw new IllegalArgumentException("Ya tenés una reserva para ese horario.");
+        }
+        Instant now = Instant.now();
+        long reserved = reservationRepository.countBookedParticipants(activity.getId(), request.activityStart(), now);
+        if (reservation.getActivityStart().equals(request.activityStart()) && isActiveSeatHold(reservation, now)) {
+            reserved -= reservation.getParticipantCount() == null ? 1 : reservation.getParticipantCount();
+        }
+        if (reserved + request.participantCount() > activity.getCapacity()) {
+            throw new IllegalArgumentException("No quedan suficientes cupos para todas las personas.");
+        }
+        boolean changed = !reservation.getActivityStart().equals(request.activityStart())
+                || !Objects.equals(reservation.getParticipantCount(), request.participantCount());
+        boolean expired = reservation.getPaymentExpiresAt() == null || !reservation.getPaymentExpiresAt().isAfter(now);
+        reservation.setActivityStart(request.activityStart());
+        reservation.setParticipantCount(request.participantCount());
+        reservation.setPaymentStatus(ReservationPaymentStatus.PENDING_PAYMENT);
+        if (expired) reservation.setPaymentExpiresAt(now.plus(Duration.ofMinutes(10)));
+        if (changed || expired) {
+            reservation.setContactName(null);
+            reservation.setContactEmail(null);
+            reservation.setContactPhone(null);
+            reservation.getParticipants().clear();
+        }
+        return ReservationResponse.from(reservationRepository.save(reservation), false);
+    }
+
+    @Transactional
+    public ReservationResponse completeSeatHold(Long touristId, Long reservationId, GroupReservationRequest request) {
+        ActivityReservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró el apartado de cupos."));
+        if (!reservation.getTourist().getId().equals(touristId)) throw new IllegalArgumentException("Este apartado no te pertenece.");
+        Instant now = Instant.now();
+        if (reservation.getPaymentStatus() != ReservationPaymentStatus.PENDING_PAYMENT
+                || reservation.getPaymentExpiresAt() == null || !reservation.getPaymentExpiresAt().isAfter(now)) {
+            throw new IllegalArgumentException("Expiró el apartado de cupos. Volvé a elegir fecha y horario.");
+        }
+        if (!reservation.getActivityStart().equals(request.activityStart())
+                || request.participants().size() != reservation.getParticipantCount()) {
+            throw new IllegalArgumentException("La cantidad o el horario ya no coincide con los cupos apartados.");
+        }
+        Activity activity = reservation.getActivity();
+        validateParticipants(activity, request.participants());
+        reservation.setContactName(request.contactName().trim());
+        reservation.setContactEmail(request.contactEmail().trim());
+        reservation.setContactPhone(request.contactPhone().trim());
+        reservation.getParticipants().clear();
+        for (ReservationParticipantRequest item : request.participants()) {
+            ReservationParticipant participant = new ReservationParticipant();
+            participant.setReservation(reservation);
+            participant.setFullName(item.fullName().trim());
+            participant.setDocumentType(item.documentType());
+            participant.setDocumentNumber(item.documentNumber().trim().toUpperCase(Locale.ROOT));
+            participant.setAge(item.age());
+            participant.setHeightCm(item.heightCm());
+            participant.setLevel(item.level() == null || item.level().isBlank() ? null : item.level());
+            reservation.getParticipants().add(participant);
+        }
+        if (activity.getPrice().signum() == 0) {
+            reservation.setPaymentStatus(ReservationPaymentStatus.APPROVED);
+            reservation.setPaymentExpiresAt(null);
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() {
+                    notifyReservationConfirmed(reservation.getContactEmail(), reservation.getContactName(), activity,
+                            reservation.getActivityStart(), reservation.getParticipantCount(), BigDecimal.ZERO);
+                }
+            });
+        }
+        return ReservationResponse.from(reservationRepository.save(reservation), false);
+    }
+
+    private void validateHoldSlot(Activity activity, LocalDateTime occurrence, Integer participantCount) {
+        if (!activity.isAcceptingReservations() || activity.isArchived()) throw new IllegalArgumentException("Esta actividad ya no acepta nuevas reservas.");
+        if (participantCount == null || participantCount < 1 || participantCount > activity.getCapacity())
+            throw new IllegalArgumentException("La cantidad de participantes no es válida.");
+        if (!isOccurrence(activity, occurrence) || !occurrence.isAfter(LocalDateTime.now()))
+            throw new IllegalArgumentException("Ese horario no está disponible.");
+        if (occurrence.minusMinutes(activity.getBookingCutoffMinutes()).isBefore(LocalDateTime.now()))
+            throw new IllegalArgumentException("El plazo para reservar esta fecha ya cerró.");
+    }
+
+    private boolean isActiveSeatHold(ActivityReservation reservation, Instant now) {
+        return (reservation.getPaymentStatus() == ReservationPaymentStatus.PENDING_PAYMENT
+                || reservation.getPaymentStatus() == ReservationPaymentStatus.PAYMENT_RETRY_PENDING)
+                && reservation.getPaymentExpiresAt() != null && reservation.getPaymentExpiresAt().isAfter(now);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ActivityAvailabilityResponse> remainingCapacityBatch(Long activityId, List<LocalDateTime> occurrences) {
+        Activity activity = activityRepository.findById(activityId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró la actividad."));
+        List<LocalDateTime> validOccurrences = occurrences == null ? List.of() : occurrences.stream().distinct()
+                .filter(occurrence -> isOccurrence(activity, occurrence)).sorted().toList();
+        if (validOccurrences.isEmpty()) return List.of();
+
+        Instant now = Instant.now();
+        Map<LocalDateTime, Long> bookedByOccurrence = new HashMap<>();
+        for (Object[] row : reservationRepository.sumBookedParticipantsByActivityAndStartBetween(activityId,
+                validOccurrences.getFirst(), validOccurrences.getLast(), now, List.of(
+                        ReservationPaymentStatus.PENDING_PAYMENT,
+                        ReservationPaymentStatus.PAYMENT_RETRY_PENDING,
+                        ReservationPaymentStatus.WAITLIST_OFFERED))) {
+            bookedByOccurrence.put((LocalDateTime) row[0], ((Number) row[1]).longValue());
+        }
+        return validOccurrences.stream().map(occurrence -> new ActivityAvailabilityResponse(occurrence,
+                Math.max(0, activity.getCapacity() - bookedByOccurrence.getOrDefault(occurrence, 0L).intValue()))).toList();
+    }
+
     @Transactional(readOnly = true)
     public ProviderPublicResponse publicProvider(Long providerId) {
         Provider provider = userRepository.findById(providerId).filter(Provider.class::isInstance)
@@ -750,18 +921,16 @@ public class ActivityService {
     private List<LocalDateTime> upcoming(Activity activity) {
         if (activity.isArchived() || !activity.isAcceptingReservations()) return List.of();
         LocalDate today = LocalDate.now();
-        LocalDate last = activity.getRepeatUntil() == null ? today.plusDays(90)
-                : activity.getRepeatUntil().isBefore(today.plusDays(90)) ? activity.getRepeatUntil() : today.plusDays(90);
+        LocalDate last = activity.getRecurrence() == ActivityRecurrence.ONCE ? activity.getFirstDate()
+                : activity.getRepeatUntil() == null ? today.plusMonths(6) : activity.getRepeatUntil();
         LocalDate begin = activity.getFirstDate().isAfter(today) ? activity.getFirstDate() : today;
-        if (activity.getRecurrence() == ActivityRecurrence.ONCE) last = activity.getFirstDate();
         List<LocalDateTime> result = new ArrayList<>();
         LocalDateTime bookableAfter = LocalDateTime.now().plusMinutes(activity.getBookingCutoffMinutes());
-        for (LocalDate date = begin; !date.isAfter(last) && result.size() < 12; date = date.plusDays(1)) {
+        for (LocalDate date = begin; !date.isAfter(last); date = date.plusDays(1)) {
             if (occursOn(activity, date)) {
                 for (LocalTime time : activity.getStartTimes()) {
                     LocalDateTime occurrence = date.atTime(time);
                     if (occurrence.isAfter(bookableAfter)) result.add(occurrence);
-                    if (result.size() >= 12) break;
                 }
             }
         }

@@ -1,4 +1,4 @@
-export const API_URL = `http://${window.location.hostname}:8080/api`;
+export const API_URL = "/api";
 
 export async function loginUser(credentials) {
     let response;
@@ -10,7 +10,7 @@ export async function loginUser(credentials) {
             credentials: "include",
         });
     } catch {
-        throw new Error("No se pudo conectar con el servidor. Verificá que Spring Boot esté ejecutándose en http://localhost:8080.");
+        throw new Error("No se pudo conectar con el servidor. Verificá que la aplicación esté iniciada.");
     }
 
     const responseData = await response.json().catch(() => ({}));

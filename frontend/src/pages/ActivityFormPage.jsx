@@ -84,7 +84,7 @@ export default function ActivityFormPage({ activity, onBack, onSaved }) {
     const [step, setStep] = useState(0);
     const [previewPhotoIndex, setPreviewPhotoIndex] = useState(0);
     const previewPhotos = [
-        ...keptPhotos.map(photo => ({ src: `http://${window.location.hostname}:8080${photo.url}`, alt: photo.fileName || "Foto de la actividad" })),
+        ...keptPhotos.map(photo => ({ src: `${photo.url}`, alt: photo.fileName || "Foto de la actividad" })),
         ...newPhotos.map(photo => ({ src: photo.preview, alt: photo.name })),
     ];
     const activePreviewPhoto = previewPhotos[Math.min(previewPhotoIndex, Math.max(0, previewPhotos.length - 1))];
@@ -249,7 +249,7 @@ export default function ActivityFormPage({ activity, onBack, onSaved }) {
                         </label>
                         {(keptPhotos.length > 0 || newPhotos.length > 0) && <div className="activity-photo-grid">
                             {keptPhotos.map(photo => <figure key={`saved-${photo.id}`}>
-                                <img src={`http://${window.location.hostname}:8080${photo.url}`} alt={photo.fileName || "Foto de la actividad"} />
+                                <img src={`${photo.url}`} alt={photo.fileName || "Foto de la actividad"} />
                                 <button type="button" aria-label="Quitar foto" onClick={() => setKeptPhotos(current => current.filter(item => item.id !== photo.id))}>×</button>
                             </figure>)}
                             {newPhotos.map((photo, index) => <figure key={`new-${photo.preview}`}>
@@ -278,6 +278,7 @@ export default function ActivityFormPage({ activity, onBack, onSaved }) {
                             <input type="date" min={dayAfter(form.firstDate)} value={form.repeatUntil}
                                 onChange={event => change("repeatUntil", event.target.value)} required={form.recurrence === "SEASONAL"} />
                         </label>}
+                        {form.recurrence !== "ONCE" && !form.repeatUntil && <small className="field-hint">Sin fecha de fin, se muestran las fechas de los próximos seis meses. Para incluir fechas posteriores, indicá hasta cuándo se repite.</small>}
                         {["WEEKLY", "BIWEEKLY", "SEASONAL"].includes(form.recurrence) && <fieldset className="activity-weekday-picker">
                             <legend>{form.recurrence === "SEASONAL" ? "Días activos de la temporada" : "Días de la semana"}</legend>
                             <div className="weekday-options">{weekdayOptions.map(([value, label]) => <label key={value}>

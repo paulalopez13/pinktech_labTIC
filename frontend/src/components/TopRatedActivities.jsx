@@ -27,7 +27,7 @@ export default function TopRatedActivities({ onExplore, onSelectActivity }) {
             <button type="button" onClick={onExplore}>Ver todas <span aria-hidden="true">↗</span></button></div>
         <div className="home-top-grid">{activities.map((activity, index) => <button className="home-top-card" type="button" key={activity.id} onClick={() => onSelectActivity?.(activity)}>
             <span className="home-top-rank">{index + 1}</span>
-            <span className="home-top-photo">{activity.photos?.length ? <img src={`http://${window.location.hostname}:8080${activity.photos[0].url}`} alt="" loading="lazy" /> : <span className="home-top-placeholder"><BrandLogo /></span>}</span>
+            <span className="home-top-photo">{activity.photos?.length ? <img src={`${activity.photos[0].url}`} alt="" loading="lazy" /> : <span className="home-top-placeholder"><BrandLogo /></span>}</span>
             <span className="home-top-info"><strong className="home-top-name">{activity.name}</strong><span className="home-top-location">{activity.city}, {activity.department}</span>
                 {metric === "rating" ? <span className="home-top-rating"><span aria-label={`${activity.averageRating.toFixed(1)} de 5 estrellas`}>★</span> {activity.averageRating.toFixed(1)} <small>({activity.reviewCount} {activity.reviewCount === 1 ? "reseña" : "reseñas"})</small></span>
                     : <span className="home-top-popularity">↗ {activity.recentReservationCount || 0} reservas recientes</span>}

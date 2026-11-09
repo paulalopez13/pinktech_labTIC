@@ -1,6 +1,6 @@
 import { getCsrfToken } from "./authService";
 
-const API_URL = `http://${window.location.hostname}:8080/api`;
+const API_URL = "/api";
 
 async function readResponse(response) {
     const text = await response.text();
@@ -13,7 +13,7 @@ async function request(path, options = {}) {
     try {
         response = await fetch(`${API_URL}${path}`, { credentials: "include", ...options });
     } catch {
-        throw new Error("No se pudo conectar con el servidor. Verificá que Spring Boot esté ejecutándose en http://localhost:8080.");
+        throw new Error("No se pudo conectar con el servidor. Verificá que la aplicación esté iniciada.");
     }
     const data = await readResponse(response);
     if (!response.ok) throw new Error(data?.message || "No se pudo completar la operación.");
@@ -36,6 +36,7 @@ export const getMyReservations = () => request("/reservations/mine");
 export const getProviderReservations = () => request("/reservations/provider");
 export const getActivityReviews = id => request(`/activities/${id}/reviews`);
 export const getActivityAvailability = (id, activityStart) => request(`/activities/${id}/availability?activityStart=${encodeURIComponent(activityStart)}`);
+export const getActivityAvailabilityBatch = (id, activityStarts) => mutation(`/activities/${id}/availability/batch`, "POST", activityStarts);
 export const getPublicProvider = id => request(`/activities/providers/${id}`);
 export const getFavoriteActivityIds = () => request("/favorites/activities/ids");
 export const getFavoriteActivities = () => request("/favorites/activities");

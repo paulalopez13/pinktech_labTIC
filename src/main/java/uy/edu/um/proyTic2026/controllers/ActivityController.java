@@ -47,6 +47,11 @@ public class ActivityController {
         return run(() -> Map.of("remaining", activityService.remainingCapacity(id, activityStart)));
     }
 
+    @PostMapping("/{id}/availability/batch")
+    public ResponseEntity<?> availabilityBatch(@PathVariable Long id, @RequestBody List<LocalDateTime> activityStarts) {
+        return run(() -> activityService.remainingCapacityBatch(id, activityStarts));
+    }
+
     @GetMapping("/providers/{providerId}")
     public ResponseEntity<?> publicProvider(@PathVariable Long providerId) {
         return run(() -> activityService.publicProvider(providerId));
